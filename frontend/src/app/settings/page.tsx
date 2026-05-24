@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWorkspaceStore } from '@/lib/store';
-import { updateWorkspace, getSubscription, createSubscription } from '@/lib/api';
+import { createWorkspace, updateWorkspace, getSubscription, createSubscription } from '@/lib/api';
 import { toast } from 'sonner';
 
 const PLANS = [
@@ -41,13 +41,21 @@ export default function SettingsPage() {
     }
   }, [activeWorkspace]);
 
+  // Create or update workspace depending on whether one exists yet
   const saveWorkspaceName = useMutation({
-    mutationFn: () => updateWorkspace(activeWorkspace!.id, { name: wsName }),
-    onSuccess: (updated) => {
-      const next = workspaces.map((ws) => (ws.id === updated.id ? updated : ws));
-      setWorkspaces(next);
+    mutationFn: () =>
+      activeWorkspace
+        ? updateWorkspace(activeWorkspace.id, { name: wsName })
+        : createWorkspace(wsName),
+    onSuccess: (result) => {
+      if (activeWorkspace) {
+        const next = workspaces.map((ws) => (ws.id === result.id ? result : ws));
+        setWorkspaces(next);
+      } else {
+        setWorkspaces([result]);
+      }
       qc.invalidateQueries({ queryKey: ['workspaces'] });
-      toast.success('Workspace saved');
+      toast.success(activeWorkspace ? 'Workspace saved' : 'Workspace created!');
     },
     onError: () => toast.error('Failed to save'),
   });
@@ -98,8 +106,14 @@ export default function SettingsPage() {
           <TabsContent value="workspace">
             <Card className="bg-white/5 border-white/8">
               <CardHeader>
-                <CardTitle className="text-white">Workspace Settings</CardTitle>
-                <CardDescription className="text-white/40">Manage your workspace details</CardDescription>
+                <CardTitle className="text-white">
+                  {activeWorkspace ? 'Workspace Settings' : 'Create Your Workspace'}
+                </CardTitle>
+                <CardDescription className="text-white/40">
+                  {activeWorkspace
+                    ? 'Update your workspace name and details'
+                    : 'You need a workspace to use WaBot. Create one to get started.'}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -109,23 +123,26 @@ export default function SettingsPage() {
                     placeholder="e.g. Acme Corp"
                     value={wsName}
                     onChange={(e) => setWsName(e.target.value)}
-                    disabled={!activeWorkspace}
                   />
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-white/40">Workspace ID</label>
-                  <Input
-                    className="mt-1 bg-white/5 border-white/10 text-white/30 font-mono text-xs"
-                    readOnly
-                    value={activeWorkspace?.id ?? '—'}
-                  />
-                </div>
+                {activeWorkspace && (
+                  <div>
+                    <label className="text-sm font-medium text-white/40">Workspace ID</label>
+                    <Input
+                      className="mt-1 bg-white/5 border-white/10 text-white/30 font-mono text-xs"
+                      readOnly
+                      value={activeWorkspace.id}
+                    />
+                  </div>
+                )}
                 <Button
                   className="bg-green-600 hover:bg-green-700 text-white"
                   onClick={() => saveWorkspaceName.mutate()}
-                  disabled={saveWorkspaceName.isPending || !activeWorkspace || !wsName.trim()}
+                  disabled={saveWorkspaceName.isPending || !wsName.trim()}
                 >
-                  {saveWorkspaceName.isPending ? 'Saving…' : 'Save'}
+                  {saveWorkspaceName.isPending
+                    ? (activeWorkspace ? 'Saving…' : 'Creating…')
+                    : (activeWorkspace ? 'Save' : 'Create Workspace')}
                 </Button>
               </CardContent>
             </Card>
@@ -133,88 +150,104 @@ export default function SettingsPage() {
 
           {/* WhatsApp tab */}
           <TabsContent value="whatsapp">
-            <Card className="bg-white/5 border-white/8">
-              <CardHeader>
-                <CardTitle className="text-white">WhatsApp Business Connection</CardTitle>
-                <CardDescription className="text-white/40">Connect your Meta WhatsApp Business account</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-white/70">Phone Number ID</label>
-                  <Input
-                    className="mt-1 bg-white/5 border-white/10 text-white placeholder:text-white/25"
-                    placeholder="From Meta Business Manager"
-                    value={waForm.wa_phone_number_id}
-                    onChange={(e) => setWaForm({ ...waForm, wa_phone_number_id: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-white/70">Display Phone Number</label>
-                  <Input
-                    className="mt-1 bg-white/5 border-white/10 text-white placeholder:text-white/25"
-                    placeholder="+91 99999 99999"
-                    value={waForm.wa_phone_number}
-                    onChange={(e) => setWaForm({ ...waForm, wa_phone_number: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-white/70">Access Token</label>
-                  <Input
-                    className="mt-1 bg-white/5 border-white/10 text-white placeholder:text-white/25"
-                    type="password"
-                    placeholder="Permanent or temporary access token"
-                    value={waForm.wa_access_token}
-                    onChange={(e) => setWaForm({ ...waForm, wa_access_token: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-white/70">Webhook URL (copy to Meta)</label>
-                  <Input className="mt-1 bg-white/5 border-white/10 text-white/50 font-mono text-xs" readOnly value={webhookUrl} />
-                </div>
-                <Button
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => saveWa.mutate()}
-                  disabled={saveWa.isPending}
-                >
-                  {saveWa.isPending ? 'Saving…' : 'Save'}
-                </Button>
-              </CardContent>
-            </Card>
+            {!activeWorkspace ? (
+              <Card className="bg-white/5 border-white/8">
+                <CardContent className="p-6 text-center text-white/40 text-sm">
+                  Create a workspace first in the Workspace tab.
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="bg-white/5 border-white/8">
+                <CardHeader>
+                  <CardTitle className="text-white">WhatsApp Business Connection</CardTitle>
+                  <CardDescription className="text-white/40">Connect your Meta WhatsApp Business account</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-white/70">Phone Number ID</label>
+                    <Input
+                      className="mt-1 bg-white/5 border-white/10 text-white placeholder:text-white/25"
+                      placeholder="From Meta Business Manager"
+                      value={waForm.wa_phone_number_id}
+                      onChange={(e) => setWaForm({ ...waForm, wa_phone_number_id: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-white/70">Display Phone Number</label>
+                    <Input
+                      className="mt-1 bg-white/5 border-white/10 text-white placeholder:text-white/25"
+                      placeholder="+91 99999 99999"
+                      value={waForm.wa_phone_number}
+                      onChange={(e) => setWaForm({ ...waForm, wa_phone_number: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-white/70">Access Token</label>
+                    <Input
+                      className="mt-1 bg-white/5 border-white/10 text-white placeholder:text-white/25"
+                      type="password"
+                      placeholder="Permanent or temporary access token"
+                      value={waForm.wa_access_token}
+                      onChange={(e) => setWaForm({ ...waForm, wa_access_token: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-white/70">Webhook URL (copy to Meta)</label>
+                    <Input className="mt-1 bg-white/5 border-white/10 text-white/50 font-mono text-xs" readOnly value={webhookUrl} />
+                  </div>
+                  <Button
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => saveWa.mutate()}
+                    disabled={saveWa.isPending}
+                  >
+                    {saveWa.isPending ? 'Saving…' : 'Save'}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Billing tab */}
           <TabsContent value="billing">
-            <div className="space-y-4">
-              {sub?.plan && (
-                <Card className="border-green-500/30 bg-green-500/10">
-                  <CardContent className="p-4">
-                    <p className="text-sm font-medium text-green-400">
-                      Current plan: <span className="capitalize">{sub.plan}</span>
-                    </p>
-                    <p className="text-xs text-green-500/70 mt-0.5">Status: {sub.status}</p>
-                  </CardContent>
-                </Card>
-              )}
-              {PLANS.map((plan) => (
-                <Card key={plan.id} className={`bg-white/5 ${sub?.plan === plan.id ? 'border-green-500/40' : 'border-white/8'}`}>
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-white">{plan.name} — {plan.price}</p>
-                      <p className="text-sm text-white/40 mt-0.5">{plan.desc}</p>
-                    </div>
-                    <Button
-                      variant={sub?.plan === plan.id ? 'outline' : 'default'}
-                      size="sm"
-                      className={sub?.plan === plan.id ? 'border-white/20 text-white/60' : 'bg-green-600 hover:bg-green-700 text-white'}
-                      onClick={() => subscribe.mutate(plan.id)}
-                      disabled={subscribe.isPending || sub?.plan === plan.id}
-                    >
-                      {sub?.plan === plan.id ? 'Current' : 'Subscribe'}
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            {!activeWorkspace ? (
+              <Card className="bg-white/5 border-white/8">
+                <CardContent className="p-6 text-center text-white/40 text-sm">
+                  Create a workspace first in the Workspace tab.
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {sub?.plan && (
+                  <Card className="border-green-500/30 bg-green-500/10">
+                    <CardContent className="p-4">
+                      <p className="text-sm font-medium text-green-400">
+                        Current plan: <span className="capitalize">{sub.plan}</span>
+                      </p>
+                      <p className="text-xs text-green-500/70 mt-0.5">Status: {sub.status}</p>
+                    </CardContent>
+                  </Card>
+                )}
+                {PLANS.map((plan) => (
+                  <Card key={plan.id} className={`bg-white/5 ${sub?.plan === plan.id ? 'border-green-500/40' : 'border-white/8'}`}>
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-white">{plan.name} — {plan.price}</p>
+                        <p className="text-sm text-white/40 mt-0.5">{plan.desc}</p>
+                      </div>
+                      <Button
+                        variant={sub?.plan === plan.id ? 'outline' : 'default'}
+                        size="sm"
+                        className={sub?.plan === plan.id ? 'border-white/20 text-white/60' : 'bg-green-600 hover:bg-green-700 text-white'}
+                        onClick={() => subscribe.mutate(plan.id)}
+                        disabled={subscribe.isPending || sub?.plan === plan.id}
+                      >
+                        {sub?.plan === plan.id ? 'Current' : 'Subscribe'}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>

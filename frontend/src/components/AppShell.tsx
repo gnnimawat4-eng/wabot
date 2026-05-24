@@ -8,6 +8,7 @@ import {
   LayoutDashboard, Users, Workflow, MessageSquare,
   Megaphone, Settings, LogOut, ChevronDown, Zap,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { getWorkspaces, createWorkspace } from '@/lib/api';
 import { useWorkspaceStore } from '@/lib/store';
@@ -30,23 +31,45 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { workspaces, activeWorkspace, setWorkspaces, setWorkspace } = useWorkspaceStore();
 
-  const { data, isError } = useQuery({ queryKey: ['workspaces'], queryFn: getWorkspaces });
+  // Auth guard — redirect to /login if no valid session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) router.push('/login');
+    });
+  }, [router]);
+
+  const { data, isError } = useQuery({
+    queryKey: ['workspaces'],
+    queryFn: getWorkspaces,
+    retry: false,
+  });
 
   const autoCreate = useMutation({
     mutationFn: () => createWorkspace('My Workspace'),
-    onSuccess: (ws) => setWorkspaces([ws]),
+    onSuccess: (ws) => {
+      setWorkspaces([ws]);
+      toast.success('Workspace "My Workspace" created');
+    },
+    onError: () => {
+      toast.error('Could not create workspace — go to Settings to create one manually');
+    },
   });
 
   useEffect(() => {
     if (data !== undefined) {
       if (data.length > 0) {
         setWorkspaces(data);
-      } else if (!isError && !autoCreate.isPending && !autoCreate.isSuccess) {
+      } else if (!isError && !autoCreate.isPending && !autoCreate.isSuccess && !autoCreate.isError) {
         autoCreate.mutate();
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, isError]);
+
+  // If API returned 401 (isError), push to login
+  useEffect(() => {
+    if (isError) router.push('/login');
+  }, [isError, router]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -86,6 +109,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   {ws.name}
                 </DropdownMenuItem>
               ))}
+              {workspaces.length === 0 && (
+                <DropdownMenuItem disabled className="text-white/30 text-xs">
+                  No workspaces yet
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
