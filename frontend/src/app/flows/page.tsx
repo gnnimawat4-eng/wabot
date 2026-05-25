@@ -43,7 +43,7 @@ const TRIGGER_TYPES = ['keyword', 'new_contact', 'stage_change'];
 const DEFAULT_CONFIG: Record<string, StepConfig> = {
   send_message: { message: '' },
   send_buttons: { body: '', buttons: ['', '', ''] },
-  on_reply: { branches: [{ match: '', message: '' }, { match: '', message: '' }, { match: '', message: '' }] },
+  on_reply: { branches: Array.from({ length: 10 }, () => ({ match: '', message: '' })) },
   send_template: { template_name: '' },
   wait: { delay_ms: '0' },
   update_stage: { stage: '' },
