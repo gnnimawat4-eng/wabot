@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { supabase } = require('../services/supabase');
-const { evaluateTriggers } = require('../services/flowEngine');
+const { evaluateTriggers, resumeFlowOnReply } = require('../services/flowEngine');
 const wa = require('../services/whatsapp');
 
 module.exports = async function webhookRoutes(fastify) {
@@ -50,11 +50,11 @@ module.exports = async function webhookRoutes(fastify) {
 };
 
 async function handleInbound(phoneNumberId, displayPhone, msg) {
-  // Find workspace by phone number id
+  // Live DB column is phone_number_id (not wa_phone_number_id)
   const { data: workspace } = await supabase
     .from('workspaces')
     .select('*')
-    .eq('wa_phone_number_id', phoneNumberId)
+    .eq('phone_number_id', phoneNumberId)
     .single();
 
   if (!workspace) return;
@@ -83,10 +83,14 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
 
   if (!contact) return;
 
-  // Store message
+  // Extract message body (text or button reply)
   let msgBody = '';
   if (msg.type === 'text') msgBody = msg.text?.body || '';
-  else if (msg.type === 'interactive') msgBody = msg.interactive?.button_reply?.title || msg.interactive?.list_reply?.title || '';
+  else if (msg.type === 'interactive') {
+    msgBody = msg.interactive?.button_reply?.title
+      || msg.interactive?.list_reply?.title
+      || '';
+  }
 
   await supabase.from('messages').insert({
     workspace_id: workspace.id,
@@ -98,12 +102,16 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
     status: 'delivered',
   });
 
-  // Mark read
-  if (workspace.wa_access_token) {
-    await wa.markRead(phoneNumberId, workspace.wa_access_token, msg.id).catch(() => {});
+  // Mark read — live DB column is access_token (not wa_access_token)
+  if (workspace.access_token) {
+    await wa.markRead(phoneNumberId, workspace.access_token, msg.id).catch(() => {});
   }
 
-  // Trigger flows
+  // If a flow is waiting for this contact's reply, handle it and stop
+  const consumed = await resumeFlowOnReply(workspace.id, contact, msgBody);
+  if (consumed) return;
+
+  // Otherwise evaluate triggers normally
   if (isNew) {
     await evaluateTriggers(workspace.id, contact, { type: 'new_contact' });
   }

@@ -16,11 +16,176 @@ import { getFlows, createFlow, updateFlow, deleteFlow } from '@/lib/api';
 import { timeAgo } from '@/lib/utils';
 import { toast } from 'sonner';
 
-type Step = { type: string; config: Record<string, string> };
+type Branch = { match: string; message: string };
+type StepConfig = Record<string, unknown> & {
+  message?: string;
+  body?: string;
+  buttons?: string[];
+  branches?: Branch[];
+  delay_ms?: string;
+  stage?: string;
+  template_name?: string;
+};
+type Step = { type: string; config: StepConfig };
 type Flow = { id: string; name: string; trigger: Record<string, string>; is_active: boolean; created_at: string; flow_steps: Step[] };
 
-const STEP_TYPES = ['send_message', 'send_template', 'wait', 'update_stage', 'condition'];
+const STEP_TYPES = [
+  { value: 'send_message', label: 'Send Message' },
+  { value: 'send_buttons', label: 'Send Buttons (interactive)' },
+  { value: 'on_reply', label: 'On Reply (branch by answer)' },
+  { value: 'send_template', label: 'Send Template' },
+  { value: 'wait', label: 'Wait' },
+  { value: 'update_stage', label: 'Update Stage' },
+];
+
 const TRIGGER_TYPES = ['keyword', 'new_contact', 'stage_change'];
+
+const DEFAULT_CONFIG: Record<string, StepConfig> = {
+  send_message: { message: '' },
+  send_buttons: { body: '', buttons: ['', '', ''] },
+  on_reply: { branches: [{ match: '', message: '' }, { match: '', message: '' }, { match: '', message: '' }] },
+  send_template: { template_name: '' },
+  wait: { delay_ms: '0' },
+  update_stage: { stage: '' },
+};
+
+function SendButtonsEditor({ config, onChange }: { config: StepConfig; onChange: (c: StepConfig) => void }) {
+  const buttons = config.buttons ?? ['', '', ''];
+  return (
+    <div className="space-y-2">
+      <Input
+        className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+        placeholder="Message body (e.g. What are you looking for?)"
+        value={config.body ?? ''}
+        onChange={(e) => onChange({ ...config, body: e.target.value })}
+      />
+      <p className="text-xs text-white/40">Buttons (max 3, 20 chars each)</p>
+      {buttons.map((btn, bi) => (
+        <Input
+          key={bi}
+          className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+          placeholder={`Button ${bi + 1} label`}
+          value={btn}
+          maxLength={20}
+          onChange={(e) => {
+            const next = [...buttons];
+            next[bi] = e.target.value;
+            onChange({ ...config, buttons: next });
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function OnReplyEditor({ config, onChange }: { config: StepConfig; onChange: (c: StepConfig) => void }) {
+  const branches: Branch[] = config.branches ?? [{ match: '', message: '' }];
+  const updateBranch = (i: number, field: keyof Branch, val: string) => {
+    const next = branches.map((b, idx) => idx === i ? { ...b, [field]: val } : b);
+    onChange({ ...config, branches: next });
+  };
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-white/40">Match the button reply text → send a response</p>
+      {branches.map((branch, i) => (
+        <div key={i} className="border border-white/8 rounded-md p-2 space-y-1.5 bg-white/3">
+          <p className="text-xs text-white/50">Branch {i + 1}</p>
+          <Input
+            className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm"
+            placeholder="If reply contains… (e.g. Analytical)"
+            value={branch.match}
+            onChange={(e) => updateBranch(i, 'match', e.target.value)}
+          />
+          <Input
+            className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm"
+            placeholder="Then send this message"
+            value={branch.message}
+            onChange={(e) => updateBranch(i, 'message', e.target.value)}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StepEditor({ step, index, onUpdate, onRemove }: {
+  step: Step;
+  index: number;
+  onUpdate: (s: Step) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="border border-white/10 rounded-lg p-3 space-y-2 bg-white/3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-white/40">Step {index + 1}</span>
+        <button onClick={onRemove}>
+          <Trash2 className="h-3 w-3 text-red-400" />
+        </button>
+      </div>
+      <Select
+        value={step.type}
+        onValueChange={(v) => v && onUpdate({ type: v, config: DEFAULT_CONFIG[v] ?? {} })}
+      >
+        <SelectTrigger className="bg-white/5 border-white/10 text-white">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="bg-[#0d1424] border-white/10 text-white">
+          {STEP_TYPES.map((t) => (
+            <SelectItem key={t.value} value={t.value} className="hover:bg-white/5 focus:bg-white/5">
+              {t.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {step.type === 'send_message' && (
+        <Input
+          className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+          placeholder="Message text"
+          value={step.config.message ?? ''}
+          onChange={(e) => onUpdate({ ...step, config: { message: e.target.value } })}
+        />
+      )}
+      {step.type === 'send_buttons' && (
+        <SendButtonsEditor
+          config={step.config}
+          onChange={(c) => onUpdate({ ...step, config: c })}
+        />
+      )}
+      {step.type === 'on_reply' && (
+        <OnReplyEditor
+          config={step.config}
+          onChange={(c) => onUpdate({ ...step, config: c })}
+        />
+      )}
+      {step.type === 'wait' && (
+        <Input
+          className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+          placeholder="Delay in minutes"
+          type="number"
+          value={step.config.delay_minutes as string ?? ''}
+          onChange={(e) => onUpdate({ ...step, config: { delay_ms: String(Number(e.target.value) * 60000) } })}
+        />
+      )}
+      {step.type === 'update_stage' && (
+        <Input
+          className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+          placeholder="New stage (e.g. qualified)"
+          value={step.config.stage ?? ''}
+          onChange={(e) => onUpdate({ ...step, config: { stage: e.target.value } })}
+        />
+      )}
+      {step.type === 'send_template' && (
+        <Input
+          className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+          placeholder="Template name"
+          value={step.config.template_name ?? ''}
+          onChange={(e) => onUpdate({ ...step, config: { template_name: e.target.value } })}
+        />
+      )}
+    </div>
+  );
+}
 
 function FlowDialog({ open, onClose, workspaceId }: { open: boolean; onClose: () => void; workspaceId: string }) {
   const qc = useQueryClient();
@@ -49,7 +214,7 @@ function FlowDialog({ open, onClose, workspaceId }: { open: boolean; onClose: ()
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto bg-[#0d1424] border-white/10 text-white">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto bg-[#0d1424] border-white/10 text-white">
         <DialogHeader>
           <DialogTitle className="text-white">New Flow</DialogTitle>
         </DialogHeader>
@@ -78,7 +243,7 @@ function FlowDialog({ open, onClose, workspaceId }: { open: boolean; onClose: ()
             {triggerType === 'keyword' && (
               <Input
                 className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-                placeholder="Keyword (e.g. hello)"
+                placeholder="Keyword (e.g. catalog)"
                 value={triggerValue}
                 onChange={(e) => setTriggerValue(e.target.value)}
               />
@@ -101,60 +266,17 @@ function FlowDialog({ open, onClose, workspaceId }: { open: boolean; onClose: ()
               </Button>
             </div>
             {steps.map((step, i) => (
-              <div key={i} className="border border-white/10 rounded-lg p-3 space-y-2 bg-white/3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-white/40">Step {i + 1}</span>
-                  <button onClick={() => removeStep(i)}>
-                    <Trash2 className="h-3 w-3 text-red-400" />
-                  </button>
-                </div>
-                <Select value={step.type} onValueChange={(v) => v && updateStep(i, { type: v, config: {} })}>
-                  <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#0d1424] border-white/10 text-white">
-                    {STEP_TYPES.map((t) => (
-                      <SelectItem key={t} value={t} className="hover:bg-white/5 focus:bg-white/5">
-                        {t.replace('_', ' ')}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {step.type === 'send_message' && (
-                  <Input
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-                    placeholder="Message text"
-                    value={step.config.message ?? ''}
-                    onChange={(e) => updateStep(i, { ...step, config: { message: e.target.value } })}
-                  />
-                )}
-                {step.type === 'wait' && (
-                  <Input
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-                    placeholder="Delay in minutes"
-                    type="number"
-                    value={step.config.delay_minutes ?? ''}
-                    onChange={(e) => updateStep(i, { ...step, config: { delay_ms: String(Number(e.target.value) * 60000) } })}
-                  />
-                )}
-                {step.type === 'update_stage' && (
-                  <Input
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-                    placeholder="New stage (e.g. qualified)"
-                    value={step.config.stage ?? ''}
-                    onChange={(e) => updateStep(i, { ...step, config: { stage: e.target.value } })}
-                  />
-                )}
-                {step.type === 'send_template' && (
-                  <Input
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-                    placeholder="Template name"
-                    value={step.config.template_name ?? ''}
-                    onChange={(e) => updateStep(i, { ...step, config: { template_name: e.target.value } })}
-                  />
-                )}
-              </div>
+              <StepEditor
+                key={i}
+                step={step}
+                index={i}
+                onUpdate={(s) => updateStep(i, s)}
+                onRemove={() => removeStep(i)}
+              />
             ))}
+            {steps.length === 0 && (
+              <p className="text-xs text-white/30 text-center py-3">No steps yet — click Add step</p>
+            )}
           </div>
 
           <Button
@@ -282,7 +404,6 @@ export default function FlowsPage() {
         )}
       </div>
 
-      {/* Always rendered — dialog opens regardless of workspace state */}
       <FlowDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}

@@ -37,7 +37,10 @@ function createFlowWorker() {
 
     if (!contact || !workspace) return;
 
-    await executeStep(step, contact, workspace, run);
+    const result = await executeStep(step, contact, workspace, run);
+
+    // on_reply pauses the run — don't advance until user replies
+    if (result?.pause) return;
 
     // Advance to next step
     const { data: nextStep } = await supabase
@@ -45,7 +48,7 @@ function createFlowWorker() {
       .select('*')
       .eq('flow_id', run.flow_id)
       .eq('position', step.position + 1)
-      .single();
+      .maybeSingle();
 
     if (nextStep) {
       const delay = nextStep.type === 'wait' ? (nextStep.config?.delay_ms || 0) : 0;
@@ -59,11 +62,14 @@ function createFlowWorker() {
 
 async function executeStep(step, contact, workspace, run) {
   const cfg = step.config || {};
+  // Use live DB column names for workspace
+  const phoneNumberId = workspace.phone_number_id;
+  const accessToken = workspace.access_token;
 
   switch (step.type) {
     case 'send_message':
-      if (workspace.wa_phone_number_id && workspace.wa_access_token) {
-        await wa.sendText(workspace.wa_phone_number_id, workspace.wa_access_token, contact.phone, cfg.message || '');
+      if (phoneNumberId && accessToken) {
+        await wa.sendText(phoneNumberId, accessToken, contact.phone, cfg.message || '');
         await supabase.from('messages').insert({
           workspace_id: workspace.id,
           contact_id: contact.id,
@@ -75,11 +81,33 @@ async function executeStep(step, contact, workspace, run) {
       }
       break;
 
+    case 'send_buttons':
+      if (phoneNumberId && accessToken && cfg.buttons?.length) {
+        await wa.sendButtons(phoneNumberId, accessToken, contact.phone, cfg.body || '', cfg.buttons);
+        await supabase.from('messages').insert({
+          workspace_id: workspace.id,
+          contact_id: contact.id,
+          direction: 'outbound',
+          type: 'interactive',
+          body: cfg.body || '',
+          status: 'sent',
+        });
+      }
+      break;
+
+    case 'on_reply':
+      // Pause the run and wait for the contact's next message
+      await supabase.from('flow_runs').update({
+        status: 'waiting_reply',
+        meta: { waiting_step_id: step.id, waiting_step_position: step.position },
+      }).eq('id', run.id);
+      return { pause: true };
+
     case 'send_template':
-      if (workspace.wa_phone_number_id && workspace.wa_access_token) {
+      if (phoneNumberId && accessToken) {
         await wa.sendTemplate(
-          workspace.wa_phone_number_id,
-          workspace.wa_access_token,
+          phoneNumberId,
+          accessToken,
           contact.phone,
           cfg.template_name,
           cfg.language || 'en',
@@ -94,10 +122,6 @@ async function executeStep(step, contact, workspace, run) {
 
     case 'wait':
       // handled via delay in queue
-      break;
-
-    case 'condition':
-      // basic tag/stage condition — could branch in future
       break;
   }
 }

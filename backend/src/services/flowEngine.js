@@ -1,5 +1,6 @@
 const { supabase } = require('./supabase');
 const { flowStepsQueue } = require('./redis');
+const wa = require('./whatsapp');
 
 async function evaluateTriggers(workspaceId, contact, event) {
   const { data: flows } = await supabase
@@ -41,6 +42,7 @@ async function startFlow(flow, contact) {
       workspace_id: flow.workspace_id,
       status: 'running',
       current_step: 0,
+      meta: {},
     })
     .select()
     .single();
@@ -58,4 +60,70 @@ async function enqueueStep(runId, stepId, delayMs = 0) {
   );
 }
 
-module.exports = { evaluateTriggers, startFlow, enqueueStep };
+// Called on every inbound message. Returns true if a waiting flow consumed the reply.
+async function resumeFlowOnReply(workspaceId, contact, messageBody) {
+  const { data: run } = await supabase
+    .from('flow_runs')
+    .select('*')
+    .eq('contact_id', contact.id)
+    .eq('workspace_id', workspaceId)
+    .eq('status', 'waiting_reply')
+    .maybeSingle();
+
+  if (!run) return false;
+
+  const waitingStepId = run.meta?.waiting_step_id;
+  const waitingStepPosition = run.meta?.waiting_step_position ?? 0;
+
+  const { data: step } = await supabase
+    .from('flow_steps')
+    .select('*')
+    .eq('id', waitingStepId)
+    .maybeSingle();
+
+  if (!step || step.type !== 'on_reply') return false;
+
+  const branches = step.config?.branches || [];
+  const matched = branches.find((b) =>
+    messageBody.toLowerCase().includes((b.match || '').toLowerCase())
+  );
+
+  if (matched?.message) {
+    const { data: workspace } = await supabase
+      .from('workspaces')
+      .select('*')
+      .eq('id', workspaceId)
+      .single();
+
+    if (workspace?.phone_number_id && workspace?.access_token) {
+      await wa.sendText(workspace.phone_number_id, workspace.access_token, contact.phone, matched.message);
+      await supabase.from('messages').insert({
+        workspace_id: workspaceId,
+        contact_id: contact.id,
+        direction: 'outbound',
+        type: 'text',
+        body: matched.message,
+        status: 'sent',
+      });
+    }
+  }
+
+  // Advance past the on_reply step
+  const { data: nextStep } = await supabase
+    .from('flow_steps')
+    .select('*')
+    .eq('flow_id', run.flow_id)
+    .eq('position', waitingStepPosition + 1)
+    .maybeSingle();
+
+  if (nextStep) {
+    await supabase.from('flow_runs').update({ status: 'running', meta: {} }).eq('id', run.id);
+    await enqueueStep(run.id, nextStep.id, 0);
+  } else {
+    await supabase.from('flow_runs').update({ status: 'completed', meta: {} }).eq('id', run.id);
+  }
+
+  return true;
+}
+
+module.exports = { evaluateTriggers, startFlow, enqueueStep, resumeFlowOnReply };
