@@ -31,17 +31,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { workspaces, activeWorkspace, setWorkspaces, setWorkspace } = useWorkspaceStore();
 
-  // Auth guard — redirect to /login if no valid session
+  // Auth guard — redirect only on explicit sign-out, not on API errors
   useEffect(() => {
+    // One-time session check on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) router.push('/login');
     });
-  }, [router]);
+    // React to auth state changes (e.g. token expiry, manual sign-out)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') router.push('/login');
+    });
+    return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data, isError } = useQuery({
     queryKey: ['workspaces'],
     queryFn: getWorkspaces,
-    retry: false,
+    retry: 1,
   });
 
   const autoCreate = useMutation({
@@ -65,11 +72,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, isError]);
-
-  // If API returned 401 (isError), push to login
-  useEffect(() => {
-    if (isError) router.push('/login');
-  }, [isError, router]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
