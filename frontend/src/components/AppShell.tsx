@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Users, Workflow, MessageSquare,
-  Megaphone, Settings, LogOut, ChevronDown, Zap,
+  Megaphone, Settings, LogOut, ChevronDown, Zap, Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -71,6 +71,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     },
   });
 
+  const createNew = useMutation({
+    mutationFn: () => {
+      const name = `Workspace ${workspaces.length + 1}`;
+      return createWorkspace(name);
+    },
+    onSuccess: (ws) => {
+      setWorkspaces([...workspaces, ws]);
+      setWorkspace(ws);
+      toast.success(`"${ws.name}" created`);
+    },
+    onError: () => toast.error('Failed to create workspace'),
+  });
+
   useEffect(() => {
     if (data !== undefined) {
       if (data.length > 0) {
@@ -125,6 +138,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   No workspaces yet
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem
+                onClick={() => createNew.mutate()}
+                disabled={createNew.isPending}
+                className="hover:bg-white/5 focus:bg-white/5 cursor-pointer border-t border-white/5 mt-1 pt-2 text-green-400 hover:text-green-300"
+              >
+                <Plus className="h-3.5 w-3.5 mr-2" />
+                {createNew.isPending ? 'Creating…' : 'New Workspace'}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

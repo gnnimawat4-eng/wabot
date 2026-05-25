@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export interface Workspace {
   id: string;
@@ -18,9 +19,27 @@ interface WorkspaceStore {
   setWorkspace: (ws: Workspace) => void;
 }
 
-export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
-  workspaces: [],
-  activeWorkspace: null,
-  setWorkspaces: (workspaces) => set({ workspaces, activeWorkspace: workspaces[0] ?? null }),
-  setWorkspace: (activeWorkspace) => set({ activeWorkspace }),
-}));
+export const useWorkspaceStore = create<WorkspaceStore>()(
+  persist(
+    (set) => ({
+      workspaces: [],
+      activeWorkspace: null,
+      // Preserve the user's selection when the list refreshes; only fall back
+      // to workspaces[0] when the previously-selected workspace no longer exists.
+      setWorkspaces: (workspaces) =>
+        set((state) => ({
+          workspaces,
+          activeWorkspace:
+            workspaces.find((w) => w.id === state.activeWorkspace?.id) ??
+            workspaces[0] ??
+            null,
+        })),
+      setWorkspace: (activeWorkspace) => set({ activeWorkspace }),
+    }),
+    {
+      name: 'wabot-workspace',
+      // Only persist the active selection — the list always comes from the API
+      partialize: (state) => ({ activeWorkspace: state.activeWorkspace }),
+    }
+  )
+);
