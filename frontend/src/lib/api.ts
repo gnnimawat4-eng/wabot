@@ -1,12 +1,24 @@
 import axios from 'axios';
 import { supabase } from './supabase';
 
-const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL });
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  headers: { 'Content-Type': 'application/json' },
+});
 
 api.interceptors.request.use(async (config) => {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  let { data: { session } } = await supabase.auth.getSession();
+
+  // Session missing — attempt a silent refresh before failing
+  if (!session) {
+    const { data: refreshed } = await supabase.auth.refreshSession();
+    session = refreshed.session;
+  }
+
+  if (!session) throw new Error('Not authenticated');
+
+  config.headers['Authorization'] = `Bearer ${session.access_token}`;
+  config.headers['Content-Type'] = 'application/json';
   return config;
 });
 
