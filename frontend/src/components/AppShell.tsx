@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { getWorkspaces, createWorkspace } from '@/lib/api';
+import { getWorkspaces, createWorkspace, getContacts } from '@/lib/api';
 import { useWorkspaceStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import {
@@ -50,6 +50,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     queryFn: getWorkspaces,
     retry: 1,
   });
+
+  // Poll for recent inbound contacts to show inbox activity dot
+  const { data: recentContacts } = useQuery({
+    queryKey: ['inbox-activity', activeWorkspace?.id],
+    queryFn: () => getContacts(activeWorkspace!.id, { limit: 1, order: 'last_message_at' }),
+    enabled: !!activeWorkspace,
+    refetchInterval: 30_000,
+  });
+  const hasInboxActivity = (recentContacts?.total ?? recentContacts?.data?.length ?? 0) > 0;
 
   const autoCreate = useMutation({
     mutationFn: () => createWorkspace('My Workspace'),
@@ -134,7 +143,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              {label}
+              <span className="flex-1">{label}</span>
+              {href === '/inbox' && hasInboxActivity && pathname !== '/inbox' && (
+                <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+              )}
             </Link>
           ))}
         </nav>

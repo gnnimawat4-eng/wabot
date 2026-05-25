@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Bot, Check } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useWorkspaceStore } from '@/lib/store';
 import { createWorkspace, updateWorkspace, getSubscription, createSubscription } from '@/lib/api';
 import { toast } from 'sonner';
@@ -16,6 +18,37 @@ const PLANS = [
   { id: 'growth', name: 'Growth', price: '₹14,999/mo', desc: 'For growing teams — 3 workspaces, 10,000 contacts' },
   { id: 'agency', name: 'Agency', price: '₹24,999/mo', desc: 'Unlimited workspaces, 50,000 contacts, white-label' },
 ];
+
+const AI_LANGUAGES = [
+  { value: 'auto', label: 'Auto-detect (recommended)' },
+  { value: 'english', label: 'Always English' },
+  { value: 'hindi', label: 'Always Hindi' },
+];
+
+function Toggle({ enabled, onChange, label, description }: {
+  enabled: boolean; onChange: (v: boolean) => void; label: string; description: string;
+}) {
+  return (
+    <div className="flex items-center justify-between py-3">
+      <div>
+        <p className="text-sm font-medium text-white/80">{label}</p>
+        <p className="text-xs text-white/40 mt-0.5">{description}</p>
+      </div>
+      <button
+        onClick={() => onChange(!enabled)}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+          enabled ? 'bg-green-500' : 'bg-white/10'
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+            enabled ? 'translate-x-6' : 'translate-x-1'
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const { activeWorkspace, setWorkspaces, workspaces } = useWorkspaceStore();
@@ -29,6 +62,12 @@ export default function SettingsPage() {
     wa_business_id: '',
   });
 
+  // AI settings — stored in localStorage, applied via GROQ_API_KEY env on backend
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [langDetect, setLangDetect] = useState(true);
+  const [aiLang, setAiLang] = useState('auto');
+  const [aiSaved, setAiSaved] = useState(false);
+
   useEffect(() => {
     if (activeWorkspace) {
       setWsName(activeWorkspace.name ?? '');
@@ -39,9 +78,24 @@ export default function SettingsPage() {
         wa_business_id: activeWorkspace.wa_business_id ?? '',
       });
     }
+    const stored = localStorage.getItem('wabot_ai_settings');
+    if (stored) {
+      try {
+        const { aiEnabled: ae, langDetect: ld, aiLang: al } = JSON.parse(stored);
+        if (ae !== undefined) setAiEnabled(ae);
+        if (ld !== undefined) setLangDetect(ld);
+        if (al !== undefined) setAiLang(al);
+      } catch { /* ignore */ }
+    }
   }, [activeWorkspace]);
 
-  // Create or update workspace depending on whether one exists yet
+  const saveAiSettings = () => {
+    localStorage.setItem('wabot_ai_settings', JSON.stringify({ aiEnabled, langDetect, aiLang }));
+    setAiSaved(true);
+    toast.success('AI settings saved');
+    setTimeout(() => setAiSaved(false), 2000);
+  };
+
   const saveWorkspaceName = useMutation({
     mutationFn: () =>
       activeWorkspace
@@ -99,6 +153,7 @@ export default function SettingsPage() {
           <TabsList className="mb-6 bg-white/5 border border-white/8">
             <TabsTrigger value="workspace" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-white/50">Workspace</TabsTrigger>
             <TabsTrigger value="whatsapp" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-white/50">WhatsApp</TabsTrigger>
+            <TabsTrigger value="ai" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-white/50">AI</TabsTrigger>
             <TabsTrigger value="billing" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-white/50">Billing</TabsTrigger>
           </TabsList>
 
@@ -205,6 +260,73 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* AI tab */}
+          <TabsContent value="ai">
+            <Card className="bg-white/5 border-white/8">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-green-500/15">
+                    <Bot className="h-4 w-4 text-green-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-white">AI Settings</CardTitle>
+                    <CardDescription className="text-white/40">
+                      Configure the Groq-powered smart reply assistant
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-1 divide-y divide-white/5">
+                <Toggle
+                  enabled={aiEnabled}
+                  onChange={setAiEnabled}
+                  label="AI Smart Reply"
+                  description="Automatically reply when no flow matches the customer's message"
+                />
+                <Toggle
+                  enabled={langDetect}
+                  onChange={setLangDetect}
+                  label="Auto Language Detection"
+                  description="Detect the customer's language and reply in the same language"
+                />
+                <div className="py-3 space-y-2">
+                  <div>
+                    <p className="text-sm font-medium text-white/80">AI Response Language</p>
+                    <p className="text-xs text-white/40 mt-0.5 mb-2">Override language detection with a fixed language</p>
+                  </div>
+                  <Select value={aiLang} onValueChange={(v) => v && setAiLang(v)} disabled={langDetect}>
+                    <SelectTrigger className="bg-white/5 border-white/10 text-white disabled:opacity-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0d1424] border-white/10 text-white">
+                      {AI_LANGUAGES.map((l) => (
+                        <SelectItem key={l.value} value={l.value} className="hover:bg-white/5 focus:bg-white/5">
+                          {l.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {langDetect && (
+                    <p className="text-xs text-white/30">Disable Auto Language Detection to set a fixed language</p>
+                  )}
+                </div>
+                <div className="pt-4">
+                  <Button
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={saveAiSettings}
+                  >
+                    {aiSaved ? (
+                      <><Check className="h-4 w-4 mr-1.5" />Saved</>
+                    ) : 'Save AI Settings'}
+                  </Button>
+                  <p className="text-xs text-white/25 mt-2">
+                    Requires <code className="text-white/40">GROQ_API_KEY</code> set on the backend server
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Billing tab */}
