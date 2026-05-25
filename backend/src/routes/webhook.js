@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { supabase } = require('../services/supabase');
 const { evaluateTriggers, resumeFlowOnReply } = require('../services/flowEngine');
 const wa = require('../services/whatsapp');
+const { getAIReply } = require('../services/aiReply');
 
 module.exports = async function webhookRoutes(fastify) {
   // Webhook verification
@@ -111,11 +112,37 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
   const consumed = await resumeFlowOnReply(workspace.id, contact, msgBody);
   if (consumed) return;
 
-  // Otherwise evaluate triggers normally
+  // Evaluate triggers; track whether any flow handled the message
+  let flowMatched = false;
   if (isNew) {
-    await evaluateTriggers(workspace.id, contact, { type: 'new_contact' });
+    const matched = await evaluateTriggers(workspace.id, contact, { type: 'new_contact' });
+    if (matched) flowMatched = true;
   }
-  await evaluateTriggers(workspace.id, contact, { type: 'message', body: msgBody });
+  if (msgBody) {
+    const matched = await evaluateTriggers(workspace.id, contact, { type: 'message', body: msgBody });
+    if (matched) flowMatched = true;
+  }
+
+  // No flow handled it — fall back to AI smart reply
+  if (!flowMatched && msgBody && process.env.GROQ_API_KEY) {
+    try {
+      const reply = await getAIReply(msgBody, workspace.name || 'our business');
+      if (reply && workspace.phone_number_id && workspace.access_token) {
+        await wa.sendText(workspace.phone_number_id, workspace.access_token, contact.phone, reply);
+        await supabase.from('messages').insert({
+          workspace_id: workspace.id,
+          contact_id: contact.id,
+          direction: 'outbound',
+          type: 'text',
+          body: reply,
+          status: 'sent',
+        });
+      }
+    } catch (err) {
+      // AI failure is non-fatal — log and continue
+      console.error('AI reply error:', err?.message);
+    }
+  }
 }
 
 async function handleStatus(status) {

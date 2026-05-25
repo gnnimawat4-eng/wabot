@@ -2,6 +2,7 @@ const { supabase } = require('./supabase');
 const { flowStepsQueue } = require('./redis');
 const wa = require('./whatsapp');
 
+// Returns true if at least one flow was triggered.
 async function evaluateTriggers(workspaceId, contact, event) {
   const { data: flows } = await supabase
     .from('flows')
@@ -9,7 +10,9 @@ async function evaluateTriggers(workspaceId, contact, event) {
     .eq('workspace_id', workspaceId)
     .eq('is_active', true);
 
-  if (!flows) return;
+  if (!flows) return false;
+
+  let anyMatched = false;
 
   for (const flow of flows) {
     const trigger = flow.trigger || {};
@@ -28,8 +31,11 @@ async function evaluateTriggers(workspaceId, contact, event) {
 
     if (matched) {
       await startFlow(flow, contact);
+      anyMatched = true;
     }
   }
+
+  return anyMatched;
 }
 
 async function startFlow(flow, contact) {
