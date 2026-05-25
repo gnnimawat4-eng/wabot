@@ -69,11 +69,11 @@ export default function DashboardPage() {
           </div>
           <div className="flex gap-2">
             {QUICK_ACTIONS.map(({ label, href, icon: Icon, cls }) => (
-              <Button key={href} size="sm" className={`${cls} text-white`} asChild>
-                <Link href={href}>
+              <Link key={href} href={href}>
+                <Button size="sm" className={`${cls} text-white`}>
                   <Icon className="h-3.5 w-3.5 mr-1.5" />{label}
-                </Link>
-              </Button>
+                </Button>
+              </Link>
             ))}
           </div>
         </div>
@@ -176,9 +176,11 @@ export default function DashboardPage() {
           <div className="rounded-xl border border-dashed border-white/10 p-12 text-center">
             <Zap className="h-10 w-10 mx-auto mb-3 text-white/10" />
             <p className="text-white/40 text-sm mb-4">No workspace yet. Set one up to see your stats.</p>
-            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" asChild>
-              <Link href="/settings">Go to Settings</Link>
-            </Button>
+            <Link href="/settings">
+              <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white">
+                Go to Settings
+              </Button>
+            </Link>
           </div>
         )}
       </div>
