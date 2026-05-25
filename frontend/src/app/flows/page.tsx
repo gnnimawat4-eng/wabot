@@ -243,7 +243,7 @@ function FlowDialog({ open, onClose, workspaceId }: { open: boolean; onClose: ()
             {triggerType === 'keyword' && (
               <Input
                 className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-                placeholder="Keyword (e.g. catalog)"
+                placeholder="Keywords, comma-separated (e.g. hi, hello, hey)"
                 value={triggerValue}
                 onChange={(e) => setTriggerValue(e.target.value)}
               />

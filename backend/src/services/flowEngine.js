@@ -16,8 +16,10 @@ async function evaluateTriggers(workspaceId, contact, event) {
     let matched = false;
 
     if (trigger.type === 'keyword' && event.type === 'message') {
-      const kw = (trigger.keyword || '').toLowerCase();
-      matched = event.body?.toLowerCase().includes(kw);
+      const raw = trigger.keyword || '';
+      const keywords = raw.split(',').map((k) => k.trim().toLowerCase()).filter(Boolean);
+      const body = event.body?.toLowerCase() || '';
+      matched = keywords.some((kw) => body.includes(kw));
     } else if (trigger.type === 'new_contact' && event.type === 'new_contact') {
       matched = true;
     } else if (trigger.type === 'stage_change' && event.type === 'stage_change') {
