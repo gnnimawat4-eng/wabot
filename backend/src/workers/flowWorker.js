@@ -5,6 +5,10 @@ const wa = require('../services/whatsapp');
 
 function createFlowWorker() {
   return new Worker('flow-steps', async (job) => {
+    if (job.name === 'send-reminder') {
+      return handleReminder(job.data);
+    }
+
     const { runId, stepId } = job.data;
 
     const { data: run } = await supabase
@@ -95,13 +99,24 @@ async function executeStep(step, contact, workspace, run) {
       }
       break;
 
-    case 'on_reply':
-      // Pause the run and wait for the contact's next message
-      await supabase.from('flow_runs').update({
-        status: 'waiting_reply',
-        meta: { waiting_step_id: step.id, waiting_step_position: step.position },
-      }).eq('id', run.id);
+    case 'on_reply': {
+      const meta = {
+        waiting_step_id: step.id,
+        waiting_step_position: step.position,
+        reminder_sent: false,
+      };
+      await supabase.from('flow_runs').update({ status: 'waiting_reply', meta }).eq('id', run.id);
+
+      if (cfg.reminder_delay_minutes > 0 && cfg.reminder_message) {
+        const { flowStepsQueue } = require('../services/redis');
+        await flowStepsQueue.add(
+          'send-reminder',
+          { runId: run.id, message: cfg.reminder_message },
+          { delay: cfg.reminder_delay_minutes * 60 * 1000, attempts: 2 }
+        );
+      }
       return { pause: true };
+    }
 
     case 'send_template':
       if (phoneNumberId && accessToken) {
@@ -124,6 +139,38 @@ async function executeStep(step, contact, workspace, run) {
       // handled via delay in queue
       break;
   }
+}
+
+async function handleReminder({ runId, message }) {
+  const { data: run } = await supabase
+    .from('flow_runs')
+    .select('*')
+    .eq('id', runId)
+    .eq('status', 'waiting_reply')
+    .maybeSingle();
+
+  // Run already resumed (customer replied) or reminder already sent — do nothing
+  if (!run || run.meta?.reminder_sent) return;
+
+  const { data: contact } = await supabase.from('contacts').select('*').eq('id', run.contact_id).single();
+  const { data: workspace } = await supabase.from('workspaces').select('*').eq('id', run.workspace_id).single();
+
+  if (!contact || !workspace?.phone_number_id || !workspace?.access_token) return;
+
+  await wa.sendText(workspace.phone_number_id, workspace.access_token, contact.phone, message);
+  await supabase.from('messages').insert({
+    workspace_id: run.workspace_id,
+    contact_id: contact.id,
+    direction: 'outbound',
+    type: 'text',
+    body: message,
+    status: 'sent',
+  });
+
+  await supabase
+    .from('flow_runs')
+    .update({ meta: { ...run.meta, reminder_sent: true } })
+    .eq('id', runId);
 }
 
 module.exports = { createFlowWorker };

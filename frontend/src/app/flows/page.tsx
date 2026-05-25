@@ -43,7 +43,7 @@ const TRIGGER_TYPES = ['keyword', 'new_contact', 'stage_change'];
 const DEFAULT_CONFIG: Record<string, StepConfig> = {
   send_message: { message: '' },
   send_buttons: { body: '', buttons: ['', '', ''] },
-  on_reply: { branches: Array.from({ length: 10 }, () => ({ match: '', message: '' })) },
+  on_reply: { branches: Array.from({ length: 10 }, () => ({ match: '', message: '' })), reminder_delay_minutes: 0, reminder_message: '' },
   send_template: { template_name: '' },
   wait: { delay_ms: '0' },
   update_stage: { stage: '' },
@@ -78,12 +78,25 @@ function SendButtonsEditor({ config, onChange }: { config: StepConfig; onChange:
   );
 }
 
+const REMINDER_OPTIONS = [
+  { value: '0', label: 'No reminder' },
+  { value: '5', label: '5 minutes' },
+  { value: '10', label: '10 minutes' },
+  { value: '15', label: '15 minutes' },
+  { value: '30', label: '30 minutes' },
+  { value: '60', label: '60 minutes' },
+];
+
 function OnReplyEditor({ config, onChange }: { config: StepConfig; onChange: (c: StepConfig) => void }) {
   const branches: Branch[] = config.branches ?? [{ match: '', message: '' }];
+  const reminderDelay = String(config.reminder_delay_minutes ?? 0);
+  const reminderMessage = String(config.reminder_message ?? '');
+
   const updateBranch = (i: number, field: keyof Branch, val: string) => {
     const next = branches.map((b, idx) => idx === i ? { ...b, [field]: val } : b);
     onChange({ ...config, branches: next });
   };
+
   return (
     <div className="space-y-3">
       <p className="text-xs text-white/40">Match the button reply text → send a response</p>
@@ -104,6 +117,33 @@ function OnReplyEditor({ config, onChange }: { config: StepConfig; onChange: (c:
           />
         </div>
       ))}
+
+      <div className="border-t border-white/8 pt-3 space-y-2">
+        <p className="text-xs text-white/40">Inactivity reminder (sent once if customer doesn&apos;t reply)</p>
+        <Select
+          value={reminderDelay}
+          onValueChange={(v) => onChange({ ...config, reminder_delay_minutes: Number(v) })}
+        >
+          <SelectTrigger className="bg-white/5 border-white/10 text-white">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-[#0d1424] border-white/10 text-white">
+            {REMINDER_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value} className="hover:bg-white/5 focus:bg-white/5">
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {Number(reminderDelay) > 0 && (
+          <Input
+            className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm"
+            placeholder="Reminder message (e.g. Still there? Tap a button to continue)"
+            value={reminderMessage}
+            onChange={(e) => onChange({ ...config, reminder_message: e.target.value })}
+          />
+        )}
+      </div>
     </div>
   );
 }
