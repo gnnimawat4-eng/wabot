@@ -15,7 +15,8 @@ async function evaluateTriggers(workspaceId, contact, event) {
   let anyMatched = false;
 
   for (const flow of flows) {
-    const trigger = flow.trigger || {};
+    // Raw DB rows use trigger_type + trigger_config (not a single trigger column)
+    const trigger = { type: flow.trigger_type, ...(flow.trigger_config || {}) };
     let matched = false;
 
     if (trigger.type === 'keyword' && event.type === 'message') {
