@@ -305,6 +305,15 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div>
+                    <label className="text-sm font-medium text-white/70">WhatsApp Business Account ID</label>
+                    <Input
+                      className="mt-1 bg-white/5 border-white/10 text-white placeholder:text-white/25"
+                      placeholder="e.g. 123456789012345"
+                      value={waForm.wa_business_id}
+                      onChange={(e) => setWaForm({ ...waForm, wa_business_id: e.target.value })}
+                    />
+                  </div>
+                  <div>
                     <label className="text-sm font-medium text-white/70">Display Phone Number</label>
                     <Input
                       className="mt-1 bg-white/5 border-white/10 text-white placeholder:text-white/25"
