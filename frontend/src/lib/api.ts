@@ -46,6 +46,8 @@ export const getMessages = (workspaceId: string, contactId: string) =>
 // Flows
 export const getFlows = (workspaceId: string) =>
   api.get(`/workspaces/${workspaceId}/flows`).then((r) => r.data);
+export const getFlow = (workspaceId: string, flowId: string) =>
+  api.get(`/workspaces/${workspaceId}/flows/${flowId}`).then((r) => r.data);
 export const createFlow = (workspaceId: string, data: Record<string, unknown>) =>
   api.post(`/workspaces/${workspaceId}/flows`, data).then((r) => r.data);
 export const updateFlow = (workspaceId: string, flowId: string, data: Record<string, unknown>) =>

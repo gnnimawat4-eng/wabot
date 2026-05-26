@@ -398,33 +398,37 @@ export default function FlowsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {flows.map((flow) => (
-              <Card key={flow.id} className="bg-white/5 border-white/8 hover:bg-white/8 transition-colors">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="text-base text-white">{flow.name}</CardTitle>
-                    <Badge className={flow.is_active ? 'bg-green-500/20 text-green-400 border-0' : 'bg-white/5 text-white/40 border-0'}>
-                      {flow.is_active ? 'Active' : 'Paused'}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-1 text-sm text-white/40 mb-3">
-                    <Zap className="h-3 w-3" />
-                    <span>Trigger: {flow.trigger?.type ?? '—'}</span>
-                    {flow.trigger?.keyword && (
-                      <>
-                        <ChevronRight className="h-3 w-3" />
-                        <span className="font-mono text-white/60">{flow.trigger.keyword}</span>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-xs text-white/30 mb-4">{flow.flow_steps?.length ?? 0} steps · {timeAgo(flow.created_at)}</p>
+              <Card key={flow.id} className="bg-white/5 border-white/8 hover:bg-white/8 transition-colors cursor-pointer group">
+                <Link href={`/flows/${flow.id}`} className="block">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <CardTitle className="text-base text-white group-hover:text-green-400 transition-colors">{flow.name}</CardTitle>
+                      <Badge className={flow.is_active ? 'bg-green-500/20 text-green-400 border-0' : 'bg-white/5 text-white/40 border-0'}>
+                        {flow.is_active ? 'Active' : 'Paused'}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pb-3">
+                    <div className="flex items-center gap-1 text-sm text-white/40 mb-3">
+                      <Zap className="h-3 w-3" />
+                      <span>Trigger: {flow.trigger?.type ?? '—'}</span>
+                      {flow.trigger?.keyword && (
+                        <>
+                          <ChevronRight className="h-3 w-3" />
+                          <span className="font-mono text-white/60 truncate max-w-[120px]">{flow.trigger.keyword}</span>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-xs text-white/30">{flow.flow_steps?.length ?? 0} steps · {timeAgo(flow.created_at)}</p>
+                  </CardContent>
+                </Link>
+                <CardContent className="pt-0 pb-4">
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       className="flex-1 border-white/10 text-white/60 hover:bg-white/5"
-                      onClick={() => toggle.mutate({ id: flow.id, is_active: !flow.is_active })}
+                      onClick={(e) => { e.stopPropagation(); toggle.mutate({ id: flow.id, is_active: !flow.is_active }); }}
                     >
                       <Power className="h-3 w-3 mr-1" />{flow.is_active ? 'Pause' : 'Activate'}
                     </Button>
@@ -432,7 +436,7 @@ export default function FlowsPage() {
                       variant="outline"
                       size="sm"
                       className="border-white/10 hover:bg-red-500/10"
-                      onClick={() => remove.mutate(flow.id)}
+                      onClick={(e) => { e.stopPropagation(); remove.mutate(flow.id); }}
                     >
                       <Trash2 className="h-3 w-3 text-red-400" />
                     </Button>
