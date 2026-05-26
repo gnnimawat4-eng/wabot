@@ -10,6 +10,8 @@ export interface Workspace {
   wa_access_token?: string;
   wa_business_id?: string;
   ai_system_prompt?: string;
+  business_type?: string | null;
+  onboarding_completed?: boolean;
   created_at: string;
 }
 

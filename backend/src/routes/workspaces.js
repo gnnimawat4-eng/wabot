@@ -10,6 +10,8 @@ const toWorkspace = (row) => ({
   wa_access_token: row.access_token ?? null,
   wa_business_id: row.waba_id ?? null,
   ai_system_prompt: row.ai_system_prompt ?? null,
+  business_type: row.business_type ?? null,
+  onboarding_completed: row.onboarding_completed ?? false,
   created_at: row.created_at,
   updated_at: row.updated_at,
 });
@@ -22,6 +24,8 @@ const FIELD_MAP = {
   wa_access_token: 'access_token',
   wa_business_id: 'waba_id',
   ai_system_prompt: 'ai_system_prompt',
+  business_type: 'business_type',
+  onboarding_completed: 'onboarding_completed',
 };
 
 const toDb = (body) =>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, Check } from 'lucide-react';
+import { Bot, Check, AlertTriangle } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useWorkspaceStore } from '@/lib/store';
 import { createWorkspace, updateWorkspace, getSubscription, createSubscription } from '@/lib/api';
+import { BUSINESS_TYPES, type BusinessType } from '@/lib/businessConfig';
 import { toast } from 'sonner';
 
 const PLANS = [
@@ -62,6 +63,9 @@ export default function SettingsPage() {
     wa_business_id: '',
   });
 
+  const [businessType, setBusinessType] = useState<BusinessType | null>(null);
+  const [btChanged, setBtChanged] = useState(false);
+
   // AI settings — toggles stored in localStorage; system prompt saved to workspace in DB
   const [aiEnabled, setAiEnabled] = useState(true);
   const [langDetect, setLangDetect] = useState(true);
@@ -79,6 +83,8 @@ export default function SettingsPage() {
         wa_business_id: activeWorkspace.wa_business_id ?? '',
       });
       setSystemPrompt(activeWorkspace.ai_system_prompt ?? '');
+      setBusinessType((activeWorkspace.business_type as BusinessType) ?? null);
+      setBtChanged(false);
     }
     const stored = localStorage.getItem('wabot_ai_settings');
     if (stored) {
@@ -123,6 +129,18 @@ export default function SettingsPage() {
       }
       qc.invalidateQueries({ queryKey: ['workspaces'] });
       toast.success(activeWorkspace ? 'Workspace saved' : 'Workspace created!');
+    },
+    onError: () => toast.error('Failed to save'),
+  });
+
+  const saveBusinessType = useMutation({
+    mutationFn: () => updateWorkspace(activeWorkspace!.id, { business_type: businessType }),
+    onSuccess: (result) => {
+      const next = workspaces.map((ws) => (ws.id === result.id ? result : ws));
+      setWorkspaces(next);
+      qc.invalidateQueries({ queryKey: ['workspaces'] });
+      setBtChanged(false);
+      toast.success('Business type updated — dashboard has been personalised');
     },
     onError: () => toast.error('Failed to save'),
   });
@@ -212,6 +230,52 @@ export default function SettingsPage() {
                     ? (activeWorkspace ? 'Saving…' : 'Creating…')
                     : (activeWorkspace ? 'Save' : 'Create Workspace')}
                 </Button>
+
+                {/* Business Type */}
+                {activeWorkspace && (
+                  <div className="pt-2 border-t border-white/5">
+                    <label className="text-sm font-medium text-white/70">Business Type</label>
+                    <p className="text-xs text-white/40 mt-0.5 mb-3">
+                      Dashboard aur sidebar aapke business ke hisaab se badal jaata hai
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {BUSINESS_TYPES.map((biz) => (
+                        <button
+                          key={biz.type}
+                          onClick={() => { setBusinessType(biz.type); setBtChanged(true); }}
+                          className={`
+                            relative rounded-lg p-3 text-left transition-all border text-sm
+                            ${businessType === biz.type
+                              ? 'border-green-500 bg-green-500/10'
+                              : 'border-white/8 bg-white/5 hover:bg-white/8 hover:border-white/15'
+                            }
+                          `}
+                        >
+                          <span className="text-lg block mb-1">{biz.emoji}</span>
+                          <p className="font-medium text-white text-xs leading-tight">{biz.label}</p>
+                          <p className="text-white/35 text-xs mt-0.5 leading-snug">{biz.subtitle}</p>
+                        </button>
+                      ))}
+                    </div>
+
+                    {btChanged && businessType !== activeWorkspace.business_type && (
+                      <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2.5">
+                        <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-400">
+                          Business type change karne se aapka dashboard aur sidebar badal jayega.
+                        </p>
+                      </div>
+                    )}
+
+                    <Button
+                      className="mt-3 bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => saveBusinessType.mutate()}
+                      disabled={saveBusinessType.isPending || !btChanged || !businessType}
+                    >
+                      {saveBusinessType.isPending ? 'Saving…' : 'Save Business Type'}
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

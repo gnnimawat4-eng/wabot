@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import {
-  Users, MessageSquare, Workflow, TrendingUp, Bot,
+  Users, MessageSquare, Workflow, Bot,
   UserPlus, Megaphone, ArrowRight, Zap,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -11,6 +11,7 @@ import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { useWorkspaceStore } from '@/lib/store';
 import { getWorkspaceStats } from '@/lib/api';
+import { getBusinessConfig } from '@/lib/businessConfig';
 
 function SkeletonCard() {
   return (
@@ -21,8 +22,8 @@ function SkeletonCard() {
   );
 }
 
-function StatCard({ title, value, icon: Icon, accent }: {
-  title: string; value: string | number; icon: React.ElementType; accent: string;
+function StatCard({ title, value, emoji, accent }: {
+  title: string; value: string | number; emoji: string; accent: string;
 }) {
   return (
     <div className="rounded-xl bg-white/5 border border-white/8 p-5 flex items-center justify-between">
@@ -30,21 +31,58 @@ function StatCard({ title, value, icon: Icon, accent }: {
         <p className="text-xs font-medium text-white/40 uppercase tracking-wider">{title}</p>
         <p className="text-2xl font-bold text-white mt-1">{value}</p>
       </div>
-      <div className={`p-3 rounded-xl ${accent}`}>
-        <Icon className="h-5 w-5 text-white" />
-      </div>
+      <div className={`p-3 rounded-xl ${accent} text-xl`}>{emoji}</div>
     </div>
   );
 }
 
-const QUICK_ACTIONS = [
-  { label: 'Create Flow', href: '/flows', icon: Workflow, cls: 'bg-green-600 hover:bg-green-700' },
-  { label: 'Add Contact', href: '/contacts', icon: UserPlus, cls: 'bg-blue-600 hover:bg-blue-700' },
-  { label: 'New Broadcast', href: '/broadcasts', icon: Megaphone, cls: 'bg-purple-600 hover:bg-purple-700' },
+const BUSINESS_QUICK_ACTIONS: Record<string, Array<{ label: string; href: string; emoji: string }>> = {
+  restaurant: [
+    { label: 'View Orders', href: '/coming-soon?feature=Orders', emoji: '📋' },
+    { label: 'Manage Menu', href: '/coming-soon?feature=Menu+Manager', emoji: '🍽️' },
+    { label: 'Table Status', href: '/coming-soon?feature=Tables+%26+QR', emoji: '🪑' },
+  ],
+  hotel: [
+    { label: 'Room Status', href: '/coming-soon?feature=Rooms+%26+QR', emoji: '🏨' },
+    { label: 'Today\'s Bookings', href: '/coming-soon?feature=Bookings', emoji: '📅' },
+    { label: 'Room Service', href: '/coming-soon?feature=Room+Service', emoji: '🛎️' },
+  ],
+  real_estate: [
+    { label: 'Properties', href: '/coming-soon?feature=Properties', emoji: '🏠' },
+    { label: 'Site Visits', href: '/coming-soon?feature=Site+Visits', emoji: '📅' },
+    { label: 'Leads', href: '/coming-soon?feature=Leads', emoji: '🎯' },
+  ],
+  salon: [
+    { label: 'Appointments', href: '/coming-soon?feature=Appointments', emoji: '📅' },
+    { label: 'Services', href: '/coming-soon?feature=Services', emoji: '💇' },
+    { label: 'Staff', href: '/coming-soon?feature=Staff', emoji: '👨‍💼' },
+  ],
+  clinic: [
+    { label: 'Appointments', href: '/coming-soon?feature=Appointments', emoji: '📅' },
+    { label: 'Patients', href: '/coming-soon?feature=Patients', emoji: '🏥' },
+    { label: 'Services', href: '/coming-soon?feature=Services', emoji: '💊' },
+  ],
+  education: [
+    { label: 'Classes', href: '/coming-soon?feature=Classes', emoji: '📚' },
+    { label: 'Students', href: '/coming-soon?feature=Students', emoji: '🎓' },
+    { label: 'Fees', href: '/coming-soon?feature=Fees', emoji: '💰' },
+  ],
+  automobile: [
+    { label: 'Vehicles', href: '/coming-soon?feature=Vehicles', emoji: '🚗' },
+    { label: 'Test Drives', href: '/coming-soon?feature=Test+Drives', emoji: '🏎️' },
+    { label: 'Service', href: '/coming-soon?feature=Service+Booking', emoji: '🔧' },
+  ],
+};
+
+const DEFAULT_QUICK_ACTIONS = [
+  { label: 'Create Flow', href: '/flows', emoji: '🤖' },
+  { label: 'Add Contact', href: '/contacts', emoji: '👤' },
+  { label: 'New Broadcast', href: '/broadcasts', emoji: '📢' },
 ];
 
 export default function DashboardPage() {
   const { activeWorkspace } = useWorkspaceStore();
+  const businessConfig = getBusinessConfig(activeWorkspace?.business_type);
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['stats', activeWorkspace?.id],
@@ -55,8 +93,10 @@ export default function DashboardPage() {
 
   const chartData: { day: string; inbound: number; outbound: number }[] =
     stats?.messages_7d ?? [];
-
   const hasChartData = chartData.some((d) => d.inbound > 0 || d.outbound > 0);
+
+  const quickActions =
+    BUSINESS_QUICK_ACTIONS[activeWorkspace?.business_type ?? ''] ?? DEFAULT_QUICK_ACTIONS;
 
   return (
     <AppShell>
@@ -64,17 +104,29 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-xl font-bold text-white">Dashboard</h1>
+            <div className="flex items-center gap-2">
+              {activeWorkspace?.business_type && (
+                <span className="text-xl">{businessConfig.emoji}</span>
+              )}
+              <h1 className="text-xl font-bold text-white">
+                {activeWorkspace?.onboarding_completed
+                  ? businessConfig.dashboardLabel
+                  : 'Dashboard'}
+              </h1>
+            </div>
             <p className="text-sm text-white/40 mt-0.5">{activeWorkspace?.name ?? 'Overview'}</p>
           </div>
           <div className="flex gap-2">
-            {QUICK_ACTIONS.map(({ label, href, icon: Icon, cls }) => (
-              <Link key={href} href={href}>
-                <Button size="sm" className={`${cls} text-white`}>
-                  <Icon className="h-3.5 w-3.5 mr-1.5" />{label}
-                </Button>
-              </Link>
-            ))}
+            <Link href="/contacts">
+              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                <UserPlus className="h-3.5 w-3.5 mr-1.5" />Add Contact
+              </Button>
+            </Link>
+            <Link href="/broadcasts">
+              <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white">
+                <Megaphone className="h-3.5 w-3.5 mr-1.5" />Broadcast
+              </Button>
+            </Link>
           </div>
         </div>
 
@@ -84,10 +136,10 @@ export default function DashboardPage() {
             Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
           ) : (
             <>
-              <StatCard title="Total Contacts" value={stats?.total_contacts ?? 0} icon={Users} accent="bg-blue-500/20" />
-              <StatCard title="Messages Today" value={stats?.messages_today ?? 0} icon={MessageSquare} accent="bg-purple-500/20" />
-              <StatCard title="Active Flows" value={stats?.active_flows ?? 0} icon={Workflow} accent="bg-orange-500/20" />
-              <StatCard title="AI Replies Today" value={stats?.ai_replies_today ?? 0} icon={Bot} accent="bg-green-500/20" />
+              <StatCard title="Total Contacts" value={stats?.total_contacts ?? 0} emoji="👥" accent="bg-blue-500/15" />
+              <StatCard title="Messages Today" value={stats?.messages_today ?? 0} emoji="💬" accent="bg-purple-500/15" />
+              <StatCard title="Active Flows" value={stats?.active_flows ?? 0} emoji="🤖" accent="bg-orange-500/15" />
+              <StatCard title="AI Replies Today" value={stats?.ai_replies_today ?? 0} emoji="✨" accent="bg-green-500/15" />
             </>
           )}
         </div>
@@ -98,8 +150,12 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-white/80">Messages — Last 7 Days</h2>
               <div className="flex items-center gap-3 text-xs text-white/40">
-                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-green-400 inline-block" />Inbound</span>
-                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-400 inline-block" />Outbound</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-green-400 inline-block" />Inbound
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-blue-400 inline-block" />Outbound
+                </span>
               </div>
             </div>
             {isLoading ? (
@@ -129,19 +185,29 @@ export default function DashboardPage() {
           <div className="rounded-xl bg-white/5 border border-white/8 p-5 flex flex-col">
             <h2 className="text-sm font-semibold text-white/80 mb-4">Quick Actions</h2>
             <div className="flex flex-col gap-2 flex-1">
-              {QUICK_ACTIONS.map(({ label, href, icon: Icon }) => (
+              {quickActions.map(({ label, href, emoji }) => (
                 <Link
-                  key={href}
+                  key={href + label}
                   href={href}
                   className="flex items-center justify-between rounded-lg bg-white/5 hover:bg-white/8 px-4 py-3 text-sm text-white/70 hover:text-white transition-colors group"
                 >
                   <span className="flex items-center gap-2.5">
-                    <Icon className="h-4 w-4 text-white/40 group-hover:text-white/70" />
+                    <span className="text-base">{emoji}</span>
                     {label}
                   </span>
                   <ArrowRight className="h-3.5 w-3.5 text-white/20 group-hover:text-white/50" />
                 </Link>
               ))}
+              <Link
+                href="/flows"
+                className="flex items-center justify-between rounded-lg bg-white/5 hover:bg-white/8 px-4 py-3 text-sm text-white/70 hover:text-white transition-colors group"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Workflow className="h-4 w-4 text-white/40 group-hover:text-white/70" />
+                  Flows manage karein
+                </span>
+                <ArrowRight className="h-3.5 w-3.5 text-white/20 group-hover:text-white/50" />
+              </Link>
               <Link
                 href="/settings"
                 className="flex items-center justify-between rounded-lg bg-white/5 hover:bg-white/8 px-4 py-3 text-sm text-white/70 hover:text-white transition-colors group"
@@ -171,7 +237,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Empty state when no workspace */}
+        {/* Empty state */}
         {!activeWorkspace && !isLoading && (
           <div className="rounded-xl border border-dashed border-white/10 p-12 text-center">
             <Zap className="h-10 w-10 mx-auto mb-3 text-white/10" />
