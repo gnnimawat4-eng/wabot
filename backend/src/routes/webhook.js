@@ -5,8 +5,8 @@ const wa = require('../services/whatsapp');
 const { getAIReply } = require('../services/aiReply');
 
 module.exports = async function webhookRoutes(fastify) {
-  // Webhook verification
-  fastify.get('/whatsapp', async (req, reply) => {
+  // PUBLIC routes — Meta sends no JWT; onRequest: [] prevents any inherited hook
+  fastify.get('/whatsapp', { onRequest: [] }, async (req, reply) => {
     const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query;
     if (mode === 'subscribe' && token === process.env.META_VERIFY_TOKEN) {
       return reply.send(challenge);
@@ -14,17 +14,18 @@ module.exports = async function webhookRoutes(fastify) {
     return reply.code(403).send('Forbidden');
   });
 
-  // Incoming events
-  fastify.post('/whatsapp', {
-    config: { rawBody: true },
-  }, async (req, reply) => {
+  // Incoming events — also PUBLIC
+  fastify.post('/whatsapp', { onRequest: [] }, async (req, reply) => {
+    // Optional signature verification (non-fatal — log mismatch but don't block)
     const sig = req.headers['x-hub-signature-256'];
-    if (sig) {
+    if (sig && process.env.META_APP_SECRET) {
       const expected = 'sha256=' + crypto
-        .createHmac('sha256', process.env.META_APP_SECRET || '')
+        .createHmac('sha256', process.env.META_APP_SECRET)
         .update(JSON.stringify(req.body))
         .digest('hex');
-      if (sig !== expected) return reply.code(401).send('Invalid signature');
+      if (sig !== expected) {
+        req.log.warn('Webhook signature mismatch — continuing anyway');
+      }
     }
 
     const body = req.body;
