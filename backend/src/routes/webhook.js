@@ -29,6 +29,8 @@ module.exports = async function webhookRoutes(fastify) {
     }
 
     const body = req.body;
+    console.log('Received webhook:', JSON.stringify(body, null, 2));
+
     const entry = body?.entry?.[0];
     const changes = entry?.changes?.[0];
     const value = changes?.value;
@@ -36,6 +38,8 @@ module.exports = async function webhookRoutes(fastify) {
     if (!value) return reply.send('ok');
 
     const phoneNumberId = value.metadata?.phone_number_id;
+    console.log('Looking for workspace with phone_number_id:', phoneNumberId);
+
     const messages = value.messages || [];
     const statuses = value.statuses || [];
 
@@ -58,6 +62,8 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
     .select('*')
     .eq('phone_number_id', phoneNumberId)
     .single();
+
+  console.log('Workspace found:', workspace);
 
   if (!workspace) return;
 
