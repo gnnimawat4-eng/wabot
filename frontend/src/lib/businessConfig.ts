@@ -35,7 +35,7 @@ export const BUSINESS_TYPES: BusinessConfig[] = [
     dashboardLabel: 'Restaurant Overview',
     nav: [
       { href: '/dashboard', label: 'Dashboard', emoji: '📊' },
-      { href: '/coming-soon?feature=Tables+%26+QR', label: 'Tables & QR', emoji: '🪑' },
+      { href: '/tables-qr', label: 'Tables & QR', emoji: '🪑' },
       { href: '/coming-soon?feature=Orders', label: 'Orders', emoji: '📋' },
       { href: '/coming-soon?feature=Menu+Manager', label: 'Menu Manager', emoji: '🍽️' },
       { href: '/contacts', label: 'Contacts', emoji: '👥' },
@@ -71,7 +71,7 @@ export const BUSINESS_TYPES: BusinessConfig[] = [
     dashboardLabel: 'Hotel Overview',
     nav: [
       { href: '/dashboard', label: 'Dashboard', emoji: '📊' },
-      { href: '/coming-soon?feature=Rooms+%26+QR', label: 'Rooms & QR', emoji: '🏨' },
+      { href: '/tables-qr', label: 'Rooms & QR', emoji: '🏨' },
       { href: '/coming-soon?feature=Bookings', label: 'Bookings', emoji: '📅' },
       { href: '/coming-soon?feature=Room+Service', label: 'Room Service', emoji: '🛎️' },
       { href: '/contacts', label: 'Contacts', emoji: '👥' },

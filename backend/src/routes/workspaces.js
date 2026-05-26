@@ -89,6 +89,43 @@ module.exports = async function workspaceRoutes(fastify) {
     return toWorkspace(data);
   });
 
+  // Locations (tables / rooms)
+  fastify.get('/:id/locations', auth, async (req) => {
+    const { id } = req.params;
+    const { data, error } = await supabase
+      .from('location_qr')
+      .select('*')
+      .eq('workspace_id', id)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  });
+
+  fastify.post('/:id/locations', auth, async (req, reply) => {
+    const { id } = req.params;
+    const { name, location_type } = req.body || {};
+    if (!name || !location_type) return reply.code(400).send({ error: 'name and location_type are required' });
+
+    const { data, error } = await supabase
+      .from('location_qr')
+      .insert({ workspace_id: id, name, location_type })
+      .select()
+      .single();
+    if (error) throw error;
+    return reply.code(201).send(data);
+  });
+
+  fastify.delete('/:id/locations/:locationId', auth, async (req, reply) => {
+    const { id, locationId } = req.params;
+    const { error } = await supabase
+      .from('location_qr')
+      .delete()
+      .eq('id', locationId)
+      .eq('workspace_id', id);
+    if (error) throw error;
+    return reply.code(204).send();
+  });
+
   fastify.get('/:id/stats', auth, async (req) => {
     const { id } = req.params;
     const { data, error } = await supabase.rpc('get_workspace_stats', { ws_id: id });
