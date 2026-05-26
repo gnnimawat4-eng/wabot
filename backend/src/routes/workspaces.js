@@ -115,6 +115,22 @@ module.exports = async function workspaceRoutes(fastify) {
     return reply.code(201).send(data);
   });
 
+  fastify.patch('/:id/locations/:locationId', auth, async (req, reply) => {
+    const { id, locationId } = req.params;
+    const { name } = req.body || {};
+    if (!name || !name.trim()) return reply.code(400).send({ error: 'name is required' });
+
+    const { data, error } = await supabase
+      .from('location_qr')
+      .update({ name: name.trim() })
+      .eq('id', locationId)
+      .eq('workspace_id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  });
+
   fastify.delete('/:id/locations/:locationId', auth, async (req, reply) => {
     const { id, locationId } = req.params;
     const { error } = await supabase

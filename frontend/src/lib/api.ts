@@ -68,6 +68,8 @@ export const getLocations = (workspaceId: string) =>
   api.get(`/workspaces/${workspaceId}/locations`).then((r) => r.data);
 export const createLocation = (workspaceId: string, data: { name: string; location_type: string }) =>
   api.post(`/workspaces/${workspaceId}/locations`, data).then((r) => r.data);
+export const updateLocation = (workspaceId: string, locationId: string, name: string) =>
+  api.patch(`/workspaces/${workspaceId}/locations/${locationId}`, { name }).then((r) => r.data);
 export const deleteLocation = (workspaceId: string, locationId: string) =>
   api.delete(`/workspaces/${workspaceId}/locations/${locationId}`);
 
