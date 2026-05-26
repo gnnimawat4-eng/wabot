@@ -126,7 +126,7 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
   // No flow handled it — fall back to AI smart reply
   if (!flowMatched && msgBody && process.env.GROQ_API_KEY) {
     try {
-      const reply = await getAIReply(msgBody, workspace.name || 'our business');
+      const reply = await getAIReply(msgBody, workspace.name || 'our business', workspace.ai_system_prompt || null);
       if (reply && workspace.phone_number_id && workspace.access_token) {
         await wa.sendText(workspace.phone_number_id, workspace.access_token, contact.phone, reply);
         await supabase.from('messages').insert({

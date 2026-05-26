@@ -62,11 +62,12 @@ export default function SettingsPage() {
     wa_business_id: '',
   });
 
-  // AI settings — stored in localStorage, applied via GROQ_API_KEY env on backend
+  // AI settings — toggles stored in localStorage; system prompt saved to workspace in DB
   const [aiEnabled, setAiEnabled] = useState(true);
   const [langDetect, setLangDetect] = useState(true);
   const [aiLang, setAiLang] = useState('auto');
   const [aiSaved, setAiSaved] = useState(false);
+  const [systemPrompt, setSystemPrompt] = useState('');
 
   useEffect(() => {
     if (activeWorkspace) {
@@ -77,6 +78,7 @@ export default function SettingsPage() {
         wa_access_token: activeWorkspace.wa_access_token ?? '',
         wa_business_id: activeWorkspace.wa_business_id ?? '',
       });
+      setSystemPrompt(activeWorkspace.ai_system_prompt ?? '');
     }
     const stored = localStorage.getItem('wabot_ai_settings');
     if (stored) {
@@ -89,8 +91,19 @@ export default function SettingsPage() {
     }
   }, [activeWorkspace]);
 
+  const saveAiSystemPrompt = useMutation({
+    mutationFn: () => updateWorkspace(activeWorkspace!.id, { ai_system_prompt: systemPrompt }),
+    onSuccess: (result) => {
+      const next = workspaces.map((ws) => (ws.id === result.id ? result : ws));
+      setWorkspaces(next);
+      qc.invalidateQueries({ queryKey: ['workspaces'] });
+    },
+    onError: () => toast.error('Failed to save system prompt'),
+  });
+
   const saveAiSettings = () => {
     localStorage.setItem('wabot_ai_settings', JSON.stringify({ aiEnabled, langDetect, aiLang }));
+    if (activeWorkspace) saveAiSystemPrompt.mutate();
     setAiSaved(true);
     toast.success('AI settings saved');
     setTimeout(() => setAiSaved(false), 2000);
@@ -312,7 +325,27 @@ export default function SettingsPage() {
                     <p className="text-xs text-white/30">Disable Auto Language Detection to set a fixed language</p>
                   )}
                 </div>
-                <div className="pt-4">
+                <div className="py-3 space-y-2">
+                  <div>
+                    <p className="text-sm font-medium text-white/80">System Prompt</p>
+                    <p className="text-xs text-white/40 mt-0.5 mb-2">
+                      Tell AI about this business — timings, menu, services, FAQs
+                    </p>
+                  </div>
+                  <textarea
+                    rows={5}
+                    className="w-full rounded-md bg-white/5 border border-white/10 text-white placeholder:text-white/25 text-sm px-3 py-2 resize-none focus:outline-none focus:border-green-500/50 disabled:opacity-40"
+                    placeholder="Example: You are assistant for XYZ Restaurant. Shop opens at 10 AM, closes at 10 PM. Menu includes..."
+                    value={systemPrompt}
+                    disabled={!activeWorkspace}
+                    onChange={(e) => setSystemPrompt(e.target.value)}
+                  />
+                  {!activeWorkspace && (
+                    <p className="text-xs text-white/30">Create a workspace first to save the system prompt</p>
+                  )}
+                </div>
+
+                <div className="pt-2">
                   <Button
                     className="bg-green-600 hover:bg-green-700 text-white"
                     onClick={saveAiSettings}

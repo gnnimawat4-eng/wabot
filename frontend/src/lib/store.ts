@@ -9,6 +9,7 @@ export interface Workspace {
   wa_phone_number?: string;
   wa_access_token?: string;
   wa_business_id?: string;
+  ai_system_prompt?: string;
   created_at: string;
 }
 

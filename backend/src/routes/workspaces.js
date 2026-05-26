@@ -9,6 +9,7 @@ const toWorkspace = (row) => ({
   wa_phone_number: row.phone_number ?? null,
   wa_access_token: row.access_token ?? null,
   wa_business_id: row.waba_id ?? null,
+  ai_system_prompt: row.ai_system_prompt ?? null,
   created_at: row.created_at,
   updated_at: row.updated_at,
 });
@@ -20,6 +21,7 @@ const FIELD_MAP = {
   wa_phone_number: 'phone_number',
   wa_access_token: 'access_token',
   wa_business_id: 'waba_id',
+  ai_system_prompt: 'ai_system_prompt',
 };
 
 const toDb = (body) =>
