@@ -99,7 +99,12 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
       || msg.interactive?.list_reply?.title
       || '';
   }
-  console.log('Message text:', msgBody);
+
+  const messageText = msg?.text?.body?.toLowerCase().trim();
+  console.log('=== MESSAGE RECEIVED ===');
+  console.log('Message text:', messageText);
+  console.log('Message type:', msg?.type);
+  console.log('Workspace ID:', workspace.id);
 
   await supabase.from('messages').insert({
     workspace_id: workspace.id,
@@ -116,21 +121,35 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
     await wa.markRead(phoneNumberId, workspace.access_token, msg.id).catch(() => {});
   }
 
+  // Debug: query flows directly to verify workspace_id and active status
+  const { data: flows } = await supabase
+    .from('flows')
+    .select('*')
+    .eq('workspace_id', workspace.id)
+    .eq('is_active', true);
+
+  console.log('Query workspace_id:', workspace.id);
+  console.log('=== FLOWS QUERY ===');
+  console.log('Flows fetched:', JSON.stringify(flows, null, 2));
+
   // If a flow is waiting for this contact's reply, handle it and stop
   const consumed = await resumeFlowOnReply(workspace.id, contact, msgBody);
   if (consumed) return;
 
   // Evaluate triggers; track whether any flow handled the message
-  console.log('Looking for active flows in workspace:', workspace.id);
   let flowMatched = false;
+  let matchedFlow = null;
   if (isNew) {
-    const matched = await evaluateTriggers(workspace.id, contact, { type: 'new_contact' });
-    if (matched) flowMatched = true;
+    const result = await evaluateTriggers(workspace.id, contact, { type: 'new_contact' });
+    if (result.matched) { flowMatched = true; matchedFlow = result.flowName; }
   }
   if (msgBody) {
-    const matched = await evaluateTriggers(workspace.id, contact, { type: 'message', body: msgBody });
-    if (matched) flowMatched = true;
+    const result = await evaluateTriggers(workspace.id, contact, { type: 'message', body: msgBody });
+    if (result.matched) { flowMatched = true; matchedFlow = result.flowName; }
   }
+
+  console.log('=== FLOW MATCH ===');
+  console.log('Matched flow:', matchedFlow ? matchedFlow : 'NONE MATCHED');
 
   // No flow handled it — fall back to AI smart reply
   if (!flowMatched && msgBody && process.env.GROQ_API_KEY) {
