@@ -99,6 +99,7 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
       || msg.interactive?.list_reply?.title
       || '';
   }
+  console.log('Message text:', msgBody);
 
   await supabase.from('messages').insert({
     workspace_id: workspace.id,
@@ -120,6 +121,7 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
   if (consumed) return;
 
   // Evaluate triggers; track whether any flow handled the message
+  console.log('Looking for active flows in workspace:', workspace.id);
   let flowMatched = false;
   if (isNew) {
     const matched = await evaluateTriggers(workspace.id, contact, { type: 'new_contact' });

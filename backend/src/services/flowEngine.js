@@ -12,7 +12,15 @@ async function evaluateTriggers(workspaceId, contact, event) {
 
   if (!flows) return false;
 
+  console.log('Active flows found:', flows.length, flows.map((f) => ({
+    name: f.name,
+    trigger_type: f.trigger_type,
+    keyword: f.trigger_config?.keyword,
+    is_active: f.is_active,
+  })));
+
   let anyMatched = false;
+  let matchedFlow = null;
 
   for (const flow of flows) {
     // Raw DB rows use trigger_type + trigger_config (not a single trigger column)
@@ -31,10 +39,13 @@ async function evaluateTriggers(workspaceId, contact, event) {
     }
 
     if (matched) {
+      matchedFlow = flow;
       await startFlow(flow, contact);
       anyMatched = true;
     }
   }
+
+  console.log('Matched flow:', matchedFlow?.name || 'NO FLOW MATCHED');
 
   return anyMatched;
 }
