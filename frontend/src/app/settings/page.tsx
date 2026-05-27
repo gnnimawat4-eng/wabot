@@ -68,7 +68,7 @@ export default function SettingsPage() {
 
   // AI settings — toggles stored in localStorage; system prompt saved to workspace in DB
   const [aiEnabled, setAiEnabled] = useState(true);
-  const [langDetect, setLangDetect] = useState(true);
+  const [langDetect, setLangDetect] = useState(false);
   const [aiLang, setAiLang] = useState('auto');
   const [aiSaved, setAiSaved] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('');
@@ -375,7 +375,7 @@ export default function SettingsPage() {
                   enabled={langDetect}
                   onChange={setLangDetect}
                   label="Auto Language Detection"
-                  description="Detect the customer's language and reply in the same language"
+                  description="Auto-detect customer language (Default: English — switches to Hindi only on explicit request)"
                 />
                 <div className="py-3 space-y-2">
                   <div>
