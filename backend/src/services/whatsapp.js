@@ -7,25 +7,29 @@ const client = axios.create({ baseURL: BASE });
 const headers = (token) => ({ Authorization: `Bearer ${token}` });
 
 async function sendText(phoneNumberId, token, to, body) {
-  return client.post(`/${phoneNumberId}/messages`, {
+  const response = await client.post(`/${phoneNumberId}/messages`, {
     messaging_product: 'whatsapp',
     to,
     type: 'text',
     text: { body },
   }, { headers: headers(token) });
+  console.log('=== SEND RESPONSE ===', response.data);
+  return response;
 }
 
 async function sendTemplate(phoneNumberId, token, to, name, languageCode, components = []) {
-  return client.post(`/${phoneNumberId}/messages`, {
+  const response = await client.post(`/${phoneNumberId}/messages`, {
     messaging_product: 'whatsapp',
     to,
     type: 'template',
     template: { name, language: { code: languageCode }, components },
   }, { headers: headers(token) });
+  console.log('=== SEND RESPONSE ===', response.data);
+  return response;
 }
 
 async function sendButtons(phoneNumberId, token, to, body, buttons) {
-  return client.post(`/${phoneNumberId}/messages`, {
+  const response = await client.post(`/${phoneNumberId}/messages`, {
     messaging_product: 'whatsapp',
     to,
     type: 'interactive',
@@ -40,6 +44,8 @@ async function sendButtons(phoneNumberId, token, to, body, buttons) {
       },
     },
   }, { headers: headers(token) });
+  console.log('=== SEND RESPONSE ===', response.data);
+  return response;
 }
 
 async function markRead(phoneNumberId, token, messageId) {
