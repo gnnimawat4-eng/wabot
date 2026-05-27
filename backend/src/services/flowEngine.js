@@ -55,18 +55,18 @@ async function startFlow(flow, contact) {
 
   const { data: run, error: runError } = await supabase
     .from('flow_runs')
-    .insert({
+    .upsert({
       flow_id: flow.id,
       contact_id: contact.id,
       workspace_id: flow.workspace_id,
       status: 'running',
       current_step: 0,
       meta: {},
-    })
+    }, { onConflict: 'flow_id,contact_id,status', ignoreDuplicates: false })
     .select()
     .single();
 
-  console.log('flow_run created:', run?.id, '| error:', runError?.message ?? 'none');
+  console.log('flow_run upserted:', run?.id, '| error:', runError?.message ?? 'none');
   if (!run) return;
 
   // Fetch the workspace once, then run all steps in-process (fire-and-forget
