@@ -121,10 +121,10 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
     await wa.markRead(phoneNumberId, workspace.access_token, msg.id).catch(() => {});
   }
 
-  // Debug: query flows directly to verify workspace_id and active status
+  // Debug: query flows directly to verify workspace_id, active status, and steps join
   const { data: flows } = await supabase
     .from('flows')
-    .select('*')
+    .select('*, flow_steps(*)')
     .eq('workspace_id', workspace.id)
     .eq('is_active', true);
 
@@ -138,18 +138,22 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
 
   // Evaluate triggers; track whether any flow handled the message
   let flowMatched = false;
-  let matchedFlow = null;
+  let matchedFlowName = null;
+  let matchedFlowObj = null;
   if (isNew) {
     const result = await evaluateTriggers(workspace.id, contact, { type: 'new_contact' });
-    if (result.matched) { flowMatched = true; matchedFlow = result.flowName; }
+    if (result.matched) { flowMatched = true; matchedFlowName = result.flowName; matchedFlowObj = result.matchedFlow; }
   }
   if (msgBody) {
     const result = await evaluateTriggers(workspace.id, contact, { type: 'message', body: msgBody });
-    if (result.matched) { flowMatched = true; matchedFlow = result.flowName; }
+    if (result.matched) { flowMatched = true; matchedFlowName = result.flowName; matchedFlowObj = result.matchedFlow; }
   }
 
   console.log('=== FLOW MATCH ===');
-  console.log('Matched flow:', matchedFlow ? matchedFlow : 'NONE MATCHED');
+  console.log('Matched flow:', matchedFlowName || 'NONE MATCHED');
+  if (matchedFlowObj) {
+    console.log('=== FLOW STEPS ===', JSON.stringify(matchedFlowObj.flow_steps, null, 2));
+  }
 
   // No flow handled it — fall back to AI smart reply
   if (!flowMatched && msgBody && process.env.GROQ_API_KEY) {

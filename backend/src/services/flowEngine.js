@@ -38,7 +38,7 @@ async function evaluateTriggers(workspaceId, contact, event) {
     }
   }
 
-  return { matched: anyMatched, flowName: matchedFlow?.name ?? null };
+  return { matched: anyMatched, flowName: matchedFlow?.name ?? null, matchedFlow };
 }
 
 async function startFlow(flow, contact) {
