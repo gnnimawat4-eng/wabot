@@ -75,6 +75,26 @@ export const updateLocation = (workspaceId: string, locationId: string, name: st
 export const deleteLocation = (workspaceId: string, locationId: string) =>
   api.delete(`/workspaces/${workspaceId}/locations/${locationId}`);
 
+// Hotel Rooms
+export const getHotelRooms = (workspaceId: string) =>
+  api.get(`/workspaces/${workspaceId}/hotel-rooms`).then((r) => r.data);
+export const createHotelRoom = (workspaceId: string, room_number: string) =>
+  api.post(`/workspaces/${workspaceId}/hotel-rooms`, { room_number }).then((r) => r.data);
+export const deleteHotelRoom = (workspaceId: string, roomId: string) =>
+  api.delete(`/workspaces/${workspaceId}/hotel-rooms/${roomId}`);
+export const checkInGuest = (workspaceId: string, roomId: string, data: Record<string, unknown>) =>
+  api.post(`/workspaces/${workspaceId}/hotel-rooms/${roomId}/checkin`, data).then((r) => r.data);
+export const checkOutGuest = (workspaceId: string, roomId: string) =>
+  api.post(`/workspaces/${workspaceId}/hotel-rooms/${roomId}/checkout`).then((r) => r.data);
+export const getRoomBill = (workspaceId: string, roomId: string) =>
+  api.get(`/workspaces/${workspaceId}/hotel-rooms/${roomId}/bill`).then((r) => r.data);
+export const addBillItem = (workspaceId: string, roomId: string, data: Record<string, unknown>) =>
+  api.post(`/workspaces/${workspaceId}/hotel-rooms/${roomId}/bill`, data).then((r) => r.data);
+export const deleteBillItem = (workspaceId: string, roomId: string, billId: string) =>
+  api.delete(`/workspaces/${workspaceId}/hotel-rooms/${roomId}/bill/${billId}`);
+export const sendBillUpdate = (workspaceId: string, roomId: string) =>
+  api.post(`/workspaces/${workspaceId}/hotel-rooms/${roomId}/send-bill`).then((r) => r.data);
+
 // Billing
 export const createSubscription = (plan: string, workspaceId: string) =>
   api.post('/billing/subscribe', { plan, workspaceId }).then((r) => r.data);

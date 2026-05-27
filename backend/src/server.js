@@ -46,6 +46,7 @@ app.register(require('./routes/workspaces'), { prefix: '/workspaces' });
 app.register(require('./routes/contacts'), { prefix: '/workspaces' });
 app.register(require('./routes/flows'), { prefix: '/workspaces' });
 app.register(require('./routes/broadcasts'), { prefix: '/workspaces' });
+app.register(require('./routes/hotelRooms'), { prefix: '/workspaces' });
 app.register(require('./routes/billing'), { prefix: '/billing' });
 
 const start = async () => {

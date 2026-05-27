@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { supabase } = require('../services/supabase');
 const { evaluateTriggers, resumeFlowOnReply } = require('../services/flowEngine');
+const { handleRoomOrderWebhook } = require('./hotelRooms');
 const wa = require('../services/whatsapp');
 const { getAIReply } = require('../services/aiReply');
 
@@ -135,6 +136,12 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
   // If a flow is waiting for this contact's reply, handle it and stop
   const consumed = await resumeFlowOnReply(workspace.id, contact, msgBody);
   if (consumed) return;
+
+  // If this is a hotel workspace and sender has an active room, route as room order
+  if (msgBody && workspace.business_type === 'hotel') {
+    const roomConsumed = await handleRoomOrderWebhook(workspace.id, from, msgBody).catch(() => false);
+    if (roomConsumed) return;
+  }
 
   // Evaluate triggers; track whether any flow handled the message
   console.log('=== CALLING FLOW ENGINE ===');
