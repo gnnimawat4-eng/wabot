@@ -181,18 +181,22 @@ function CheckInModal({
 
   const handleSubmit = async () => {
     if (!guestName.trim()) { toast.error('Guest name is required'); return; }
-    if (!guestPhone.replace(/\D/g, '')) { toast.error('Phone number is required'); return; }
+    const cleanPhone = guestPhone.replace(/\s/g, '');
+    if (!cleanPhone || cleanPhone === '+91') { toast.error('Phone number is required'); return; }
     setLoading(true);
     try {
       await checkInGuest(workspaceId, room.id, {
         guest_name: guestName.trim(),
-        guest_phone: guestPhone.replace(/\D/g, ''),
+        guest_phone: cleanPhone,
         expected_checkout: expectedCheckout || null,
       });
       toast.success(`${room.room_number} checked in — WhatsApp welcome sent!`);
       onSuccess();
-    } catch {
-      toast.error('Check-in failed');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        || (err as Error)?.message
+        || 'Check-in failed';
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -410,8 +414,11 @@ function CheckoutModal({
       await checkOutGuest(workspaceId, room.id);
       toast.success(`${room.room_number} checked out — bill sent to guest!`);
       onSuccess();
-    } catch {
-      toast.error('Checkout failed');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        || (err as Error)?.message
+        || 'Checkout failed';
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

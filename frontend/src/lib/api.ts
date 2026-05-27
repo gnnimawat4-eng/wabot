@@ -84,8 +84,10 @@ export const deleteHotelRoom = (workspaceId: string, roomId: string) =>
   api.delete(`/workspaces/${workspaceId}/hotel-rooms/${roomId}`);
 export const checkInGuest = (workspaceId: string, roomId: string, data: Record<string, unknown>) =>
   api.post(`/workspaces/${workspaceId}/hotel-rooms/${roomId}/checkin`, data).then((r) => r.data);
+export const checkinRoom = checkInGuest;
 export const checkOutGuest = (workspaceId: string, roomId: string) =>
   api.post(`/workspaces/${workspaceId}/hotel-rooms/${roomId}/checkout`).then((r) => r.data);
+export const checkoutRoom = checkOutGuest;
 export const getRoomBill = (workspaceId: string, roomId: string) =>
   api.get(`/workspaces/${workspaceId}/hotel-rooms/${roomId}/bill`).then((r) => r.data);
 export const addBillItem = (workspaceId: string, roomId: string, data: Record<string, unknown>) =>
