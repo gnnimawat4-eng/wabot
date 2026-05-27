@@ -137,6 +137,7 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
   if (consumed) return;
 
   // Evaluate triggers; track whether any flow handled the message
+  console.log('=== CALLING FLOW ENGINE ===');
   let flowMatched = false;
   let matchedFlowName = null;
   let matchedFlowObj = null;

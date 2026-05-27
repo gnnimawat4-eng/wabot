@@ -43,9 +43,14 @@ async function evaluateTriggers(workspaceId, contact, event) {
 
 async function startFlow(flow, contact) {
   const steps = (flow.flow_steps || []).sort((a, b) => a.position - b.position);
-  if (!steps.length) return;
+  console.log(`=== START FLOW: "${flow.name}" — ${steps.length} step(s) ===`);
+  if (!steps.length) {
+    console.log('=== FLOW HAS NO STEPS — nothing to execute ===');
+    return;
+  }
+  console.log('First step:', JSON.stringify({ id: steps[0].id, type: steps[0].type, config: steps[0].config }));
 
-  const { data: run } = await supabase
+  const { data: run, error: runError } = await supabase
     .from('flow_runs')
     .insert({
       flow_id: flow.id,
@@ -58,9 +63,11 @@ async function startFlow(flow, contact) {
     .select()
     .single();
 
+  console.log('flow_run created:', run?.id, '| error:', runError?.message ?? 'none');
   if (!run) return;
 
   await enqueueStep(run.id, steps[0].id, 0);
+  console.log('=== STEP ENQUEUED to BullMQ — worker will execute it ===');
 }
 
 async function enqueueStep(runId, stepId, delayMs = 0) {

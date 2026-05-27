@@ -65,25 +65,34 @@ function createFlowWorker() {
 }
 
 async function executeStep(step, contact, workspace, run) {
-  const cfg = step.config || {};
+  // config column is preferred; fall back to message_body (old column) if config is empty
+  const cfg = (step.config && Object.keys(step.config).length) ? step.config : (step.message_body || {});
   // Use live DB column names for workspace
   const phoneNumberId = workspace.phone_number_id;
   const accessToken = workspace.access_token;
 
+  console.log('=== EXECUTE STEP ===', JSON.stringify({ type: step.type, cfg, phoneNumberId: !!phoneNumberId, accessToken: !!accessToken }));
+
   switch (step.type) {
-    case 'send_message':
+    case 'send_message': {
+      const messageText = cfg.message || cfg.message_body || '';
+      console.log('=== SENDING MESSAGE ===', messageText, 'to:', contact.phone);
       if (phoneNumberId && accessToken) {
-        await wa.sendText(phoneNumberId, accessToken, contact.phone, cfg.message || '');
+        await wa.sendText(phoneNumberId, accessToken, contact.phone, messageText);
+        console.log('=== MESSAGE SENT ===');
         await supabase.from('messages').insert({
           workspace_id: workspace.id,
           contact_id: contact.id,
           direction: 'outbound',
           type: 'text',
-          body: cfg.message || '',
+          body: messageText,
           status: 'sent',
         });
+      } else {
+        console.log('=== SEND SKIPPED — missing phoneNumberId or accessToken ===');
       }
       break;
+    }
 
     case 'send_buttons':
       if (phoneNumberId && accessToken && cfg.buttons?.length) {
