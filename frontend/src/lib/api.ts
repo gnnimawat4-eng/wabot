@@ -96,6 +96,10 @@ export const deleteBillItem = (workspaceId: string, roomId: string, billId: stri
   api.delete(`/workspaces/${workspaceId}/hotel-rooms/${roomId}/bill/${billId}`);
 export const sendBillUpdate = (workspaceId: string, roomId: string) =>
   api.post(`/workspaces/${workspaceId}/hotel-rooms/${roomId}/send-bill`).then((r) => r.data);
+export const getRoomBills = (workspaceId: string, status?: string) =>
+  api.get(`/workspaces/${workspaceId}/room-bills`, { params: status ? { status } : {} }).then((r) => r.data);
+export const updateRoomBill = (workspaceId: string, billId: string, data: Record<string, unknown>) =>
+  api.patch(`/workspaces/${workspaceId}/room-bills/${billId}`, data).then((r) => r.data);
 
 // Billing
 export const createSubscription = (plan: string, workspaceId: string) =>

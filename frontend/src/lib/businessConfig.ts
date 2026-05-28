@@ -72,8 +72,8 @@ export const BUSINESS_TYPES: BusinessConfig[] = [
     nav: [
       { href: '/dashboard', label: 'Dashboard', emoji: '📊' },
       { href: '/tables-qr', label: 'Rooms & QR', emoji: '🏨' },
-      { href: '/coming-soon?feature=Bookings', label: 'Bookings', emoji: '📅' },
-      { href: '/coming-soon?feature=Room+Service', label: 'Room Service', emoji: '🛎️' },
+      { href: '/bookings', label: 'Bookings', emoji: '📅' },
+      { href: '/room-service', label: 'Room Service', emoji: '🛎️' },
       { href: '/contacts', label: 'Contacts', emoji: '👥' },
       { href: '/flows', label: 'Flows', emoji: '🤖' },
       { href: '/broadcasts', label: 'Broadcasts', emoji: '📢' },

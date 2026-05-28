@@ -77,9 +77,9 @@ module.exports = async function contactRoutes(fastify) {
     const { body } = req.body;
     const wa = require('../services/whatsapp');
     const { data: contact } = await supabase.from('contacts').select('phone').eq('id', contactId).single();
-    const { data: workspace } = await supabase.from('workspaces').select('wa_phone_number_id, wa_access_token').eq('id', workspaceId).single();
-    if (!contact || !workspace?.wa_phone_number_id) return reply.code(400).send({ error: 'WhatsApp not configured' });
-    await wa.sendText(workspace.wa_phone_number_id, workspace.wa_access_token, contact.phone, body);
+    const { data: workspace } = await supabase.from('workspaces').select('phone_number_id, access_token').eq('id', workspaceId).single();
+    if (!contact || !workspace?.phone_number_id) return reply.code(400).send({ error: 'WhatsApp not configured' });
+    await wa.sendText(workspace.phone_number_id, workspace.access_token, contact.phone, body);
     const { data: msg } = await supabase.from('messages').insert({
       workspace_id: workspaceId, contact_id: contactId, direction: 'outbound', type: 'text', body, status: 'sent',
     }).select().single();

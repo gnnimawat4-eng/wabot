@@ -216,6 +216,39 @@ module.exports = async function hotelRoomRoutes(fastify) {
     await wa.sendText(workspace.phone_number_id, workspace.access_token, room.guest_phone, msg);
     return { ok: true };
   });
+
+  // GET /:id/room-bills — all room service orders across all rooms
+  fastify.get('/:id/room-bills', auth, async (req, reply) => {
+    const { id } = req.params;
+    const { status } = req.query;
+    let query = supabase
+      .from('room_bills')
+      .select('*, hotel_rooms(room_number)')
+      .eq('workspace_id', id)
+      .order('ordered_at', { ascending: false });
+    if (status) query = query.eq('status', status);
+    const { data, error } = await query;
+    if (error) return reply.code(500).send({ error: error.message });
+    return data;
+  });
+
+  // PATCH /:id/room-bills/:billId — update status or price
+  fastify.patch('/:id/room-bills/:billId', auth, async (req, reply) => {
+    const { id, billId } = req.params;
+    const allowed = {};
+    if (req.body.status !== undefined) allowed.status = req.body.status;
+    if (req.body.amount !== undefined) allowed.amount = req.body.amount;
+    if (req.body.quantity !== undefined) allowed.quantity = req.body.quantity;
+    const { data, error } = await supabase
+      .from('room_bills')
+      .update(allowed)
+      .eq('id', billId)
+      .eq('workspace_id', id)
+      .select()
+      .single();
+    if (error) return reply.code(500).send({ error: error.message });
+    return data;
+  });
 };
 
 // Exported for use in webhook.js — checks if inbound phone has an active hotel room
