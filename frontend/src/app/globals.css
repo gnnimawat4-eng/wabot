@@ -3,33 +3,95 @@
 @tailwind utilities;
 
 @layer base {
+  /* ── Light mode (default) ─────────────────────────────────────────────────── */
   :root {
-    --background: 224 71% 4%;
+    --background: 0 0% 100%;
+    --foreground: 222 47% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 8%;
+    --primary: 142 71% 35%;
+    --primary-foreground: 144 100% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 8%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 8%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 142 71% 35%;
+    --radius: 0.5rem;
+
+    /* WaBot semantic tokens — light */
+    --wb-bg: #ffffff;
+    --wb-bg-sidebar: #f8f8f8;
+    --wb-bg-card: #ffffff;
+    --wb-bg-hover: #f3f4f6;
+    --wb-bg-active: #f0fdf4;
+    --wb-text: #1a1a1a;
+    --wb-text-2: #4b5563;
+    --wb-text-3: #9ca3af;
+    --wb-border: #e5e5e5;
+    --wb-border-2: #f0f0f0;
+    --wb-accent: #16a34a;
+    --wb-accent-hover: #15803d;
+  }
+
+  /* ── Dark mode ────────────────────────────────────────────────────────────── */
+  .dark {
+    --background: 0 0% 4%;
     --foreground: 213 31% 91%;
-    --card: 224 71% 6%;
+    --card: 0 0% 7%;
     --card-foreground: 213 31% 91%;
-    --popover: 224 71% 5%;
+    --popover: 0 0% 6%;
     --popover-foreground: 213 31% 91%;
     --primary: 142 71% 45%;
     --primary-foreground: 144 100% 5%;
-    --secondary: 222 47% 11%;
+    --secondary: 0 0% 11%;
     --secondary-foreground: 213 31% 91%;
-    --muted: 222 47% 11%;
+    --muted: 0 0% 11%;
     --muted-foreground: 215 16% 47%;
-    --accent: 222 47% 13%;
+    --accent: 0 0% 12%;
     --accent-foreground: 213 31% 91%;
     --destructive: 0 63% 31%;
     --destructive-foreground: 0 0% 98%;
-    --border: 222 47% 13%;
-    --input: 222 47% 13%;
+    --border: 0 0% 12%;
+    --input: 0 0% 12%;
     --ring: 142 71% 45%;
-    --radius: 0.5rem;
+
+    /* WaBot semantic tokens — dark */
+    --wb-bg: #0a0a0a;
+    --wb-bg-sidebar: #111111;
+    --wb-bg-card: #161616;
+    --wb-bg-hover: rgba(255, 255, 255, 0.04);
+    --wb-bg-active: rgba(22, 163, 74, 0.1);
+    --wb-text: #ffffff;
+    --wb-text-2: rgba(255, 255, 255, 0.55);
+    --wb-text-3: rgba(255, 255, 255, 0.3);
+    --wb-border: #1f1f1f;
+    --wb-border-2: #161616;
+    --wb-accent: #16a34a;
+    --wb-accent-hover: #15803d;
   }
 
   * {
     @apply border-border;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.1s ease;
   }
+
   body {
-    @apply bg-background text-foreground;
+    background: var(--wb-bg);
+    color: var(--wb-text);
+    @apply antialiased;
   }
 }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--wb-border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--wb-text-3); }

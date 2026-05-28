@@ -6,19 +6,12 @@ import { Bot, Check, AlertTriangle } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useWorkspaceStore } from '@/lib/store';
 import { createWorkspace, updateWorkspace, getSubscription, createSubscription } from '@/lib/api';
 import { BUSINESS_TYPES, type BusinessType } from '@/lib/businessConfig';
+import { useTheme } from '@/app/providers';
 import { toast } from 'sonner';
-
-const PLANS = [
-  { id: 'starter', name: 'Starter', price: '₹7,999/mo', desc: 'For solo agents — 1 workspace, 1,000 contacts' },
-  { id: 'growth', name: 'Growth', price: '₹14,999/mo', desc: 'For growing teams — 3 workspaces, 10,000 contacts' },
-  { id: 'agency', name: 'Agency', price: '₹24,999/mo', desc: 'Unlimited workspaces, 50,000 contacts, white-label' },
-];
 
 const AI_LANGUAGES = [
   { value: 'auto', label: 'Auto-detect (recommended)' },
@@ -26,47 +19,55 @@ const AI_LANGUAGES = [
   { value: 'hindi', label: 'Always Hindi' },
 ];
 
-function Toggle({ enabled, onChange, label, description }: {
-  enabled: boolean; onChange: (v: boolean) => void; label: string; description: string;
-}) {
+type Section = 'workspace' | 'whatsapp' | 'ai' | 'billing';
+
+const SECTIONS: { id: Section; label: string }[] = [
+  { id: 'workspace', label: 'Workspace Settings' },
+  { id: 'whatsapp', label: 'WhatsApp Connection' },
+  { id: 'ai',        label: 'AI Settings' },
+  { id: 'billing',   label: 'Billing & Plans' },
+];
+
+function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--wb-text-2)' }}>{label}</label>
+      {children}
+      {hint && <p className="text-xs mt-1" style={{ color: 'var(--wb-text-3)' }}>{hint}</p>}
+    </div>
+  );
+}
+
+function Toggle({ enabled, onChange, label, description }: { enabled: boolean; onChange: (v: boolean) => void; label: string; description: string }) {
   return (
     <div className="flex items-center justify-between py-3">
       <div>
-        <p className="text-sm font-medium text-white/80">{label}</p>
-        <p className="text-xs text-white/40 mt-0.5">{description}</p>
+        <p className="text-sm font-medium" style={{ color: 'var(--wb-text)' }}>{label}</p>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--wb-text-3)' }}>{description}</p>
       </div>
-      <button
-        onClick={() => onChange(!enabled)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-          enabled ? 'bg-green-500' : 'bg-white/10'
-        }`}
-      >
-        <span
-          className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-            enabled ? 'translate-x-6' : 'translate-x-1'
-          }`}
-        />
+      <button onClick={() => onChange(!enabled)}
+        className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0"
+        style={{ background: enabled ? 'var(--wb-accent)' : 'var(--wb-border)' }}>
+        <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
       </button>
     </div>
   );
 }
 
+function Divider() {
+  return <div className="my-4 border-t" style={{ borderColor: 'var(--wb-border)' }} />;
+}
+
 export default function SettingsPage() {
   const { activeWorkspace, setWorkspaces, workspaces } = useWorkspaceStore();
   const qc = useQueryClient();
+  const { theme, setTheme } = useTheme();
+  const [section, setSection] = useState<Section>('workspace');
 
   const [wsName, setWsName] = useState('');
-  const [waForm, setWaForm] = useState({
-    wa_phone_number_id: '',
-    wa_phone_number: '',
-    wa_access_token: '',
-    wa_business_id: '',
-  });
-
+  const [waForm, setWaForm] = useState({ wa_phone_number_id: '', wa_phone_number: '', wa_access_token: '', wa_business_id: '' });
   const [businessType, setBusinessType] = useState<BusinessType | null>(null);
   const [btChanged, setBtChanged] = useState(false);
-
-  // AI settings — toggles stored in localStorage; system prompt saved to workspace in DB
   const [aiEnabled, setAiEnabled] = useState(true);
   const [langDetect, setLangDetect] = useState(false);
   const [aiLang, setAiLang] = useState('auto');
@@ -99,11 +100,7 @@ export default function SettingsPage() {
 
   const saveAiSystemPrompt = useMutation({
     mutationFn: () => updateWorkspace(activeWorkspace!.id, { ai_system_prompt: systemPrompt }),
-    onSuccess: (result) => {
-      const next = workspaces.map((ws) => (ws.id === result.id ? result : ws));
-      setWorkspaces(next);
-      qc.invalidateQueries({ queryKey: ['workspaces'] });
-    },
+    onSuccess: (result) => { setWorkspaces(workspaces.map((ws) => ws.id === result.id ? result : ws)); qc.invalidateQueries({ queryKey: ['workspaces'] }); },
     onError: () => toast.error('Failed to save system prompt'),
   });
 
@@ -116,17 +113,9 @@ export default function SettingsPage() {
   };
 
   const saveWorkspaceName = useMutation({
-    mutationFn: () =>
-      activeWorkspace
-        ? updateWorkspace(activeWorkspace.id, { name: wsName })
-        : createWorkspace(wsName),
+    mutationFn: () => activeWorkspace ? updateWorkspace(activeWorkspace.id, { name: wsName }) : createWorkspace(wsName),
     onSuccess: (result) => {
-      if (activeWorkspace) {
-        const next = workspaces.map((ws) => (ws.id === result.id ? result : ws));
-        setWorkspaces(next);
-      } else {
-        setWorkspaces([result]);
-      }
+      setWorkspaces(activeWorkspace ? workspaces.map((ws) => ws.id === result.id ? result : ws) : [result]);
       qc.invalidateQueries({ queryKey: ['workspaces'] });
       toast.success(activeWorkspace ? 'Workspace saved' : 'Workspace created!');
     },
@@ -136,21 +125,17 @@ export default function SettingsPage() {
   const saveBusinessType = useMutation({
     mutationFn: () => updateWorkspace(activeWorkspace!.id, { business_type: businessType }),
     onSuccess: (result) => {
-      const next = workspaces.map((ws) => (ws.id === result.id ? result : ws));
-      setWorkspaces(next);
+      setWorkspaces(workspaces.map((ws) => ws.id === result.id ? result : ws));
       qc.invalidateQueries({ queryKey: ['workspaces'] });
       setBtChanged(false);
-      toast.success('Business type updated — dashboard has been personalised');
+      toast.success('Business type updated');
     },
     onError: () => toast.error('Failed to save'),
   });
 
   const saveWa = useMutation({
     mutationFn: () => updateWorkspace(activeWorkspace!.id, waForm),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['workspaces'] });
-      toast.success('WhatsApp settings saved');
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['workspaces'] }); toast.success('WhatsApp settings saved'); },
     onError: () => toast.error('Failed to save'),
   });
 
@@ -160,18 +145,9 @@ export default function SettingsPage() {
     enabled: !!activeWorkspace,
   });
 
-  const subscribe = useMutation({
-    mutationFn: (plan: string) => createSubscription(plan, activeWorkspace!.id),
-    onSuccess: (data) => {
-      if (data.shortUrl) window.open(data.shortUrl, '_blank');
-    },
-    onError: () => toast.error('Failed to create subscription'),
-  });
-
   const handleUpgrade = async (plan: string) => {
     if (!activeWorkspace) return;
     try {
-      // Dynamically load Razorpay
       await new Promise<void>((res, rej) => {
         if ((window as Window & typeof globalThis & { Razorpay?: unknown }).Razorpay) { res(); return; }
         const s = document.createElement('script');
@@ -191,346 +167,253 @@ export default function SettingsPage() {
       const rzp = new (window as Window & typeof globalThis & { Razorpay: new (o: Record<string, unknown>) => { open(): void } }).Razorpay({
         key, amount, currency: 'INR', order_id: orderId,
         name: 'WaBot', description: `${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan`,
-        handler: () => {
-          toast.success('Payment successful! Your plan is now active 🚀');
-          qc.invalidateQueries({ queryKey: ['subscription', activeWorkspace.id] });
-        },
+        handler: () => { toast.success('Payment successful! Your plan is now active 🚀'); qc.invalidateQueries({ queryKey: ['subscription', activeWorkspace.id] }); },
       });
       rzp.open();
     } catch { toast.error('Payment setup failed'); }
   };
 
-  const webhookUrl = typeof window !== 'undefined'
-    ? `${process.env.NEXT_PUBLIC_API_URL}/webhook/whatsapp`
-    : '';
+  const webhookUrl = typeof window !== 'undefined' ? `${process.env.NEXT_PUBLIC_API_URL}/webhook/whatsapp` : '';
+
+  const inp = "w-full rounded-lg px-3 py-2 text-sm border focus:outline-none focus:ring-1 focus:ring-green-500/40 transition-colors";
+  const inpStyle: React.CSSProperties = { background: 'var(--wb-bg)', border: '1px solid var(--wb-border)', color: 'var(--wb-text)' };
 
   return (
     <AppShell>
-      <div className="p-6 max-w-2xl">
-        <div className="mb-6">
-          <h1 className="text-xl font-bold text-white">Settings</h1>
-          <p className="text-sm text-white/40 mt-0.5">Manage your workspace and integrations</p>
+      <div className="flex h-full">
+        {/* Left sidebar nav */}
+        <div className="w-52 shrink-0 p-4 flex flex-col gap-1 border-r" style={{ borderColor: 'var(--wb-border)' }}>
+          <p className="text-xs font-semibold uppercase tracking-wider px-3 mb-2" style={{ color: 'var(--wb-text-3)' }}>Settings</p>
+          {SECTIONS.map((sec) => (
+            <button
+              key={sec.id}
+              onClick={() => setSection(sec.id)}
+              className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors"
+              style={section === sec.id
+                ? { background: 'var(--wb-bg-active)', color: 'var(--wb-accent)', fontWeight: 600 }
+                : { color: 'var(--wb-text-2)' }}
+              onMouseEnter={(e) => { if (section !== sec.id) { e.currentTarget.style.background = 'var(--wb-bg-hover)'; } }}
+              onMouseLeave={(e) => { if (section !== sec.id) { e.currentTarget.style.background = 'transparent'; } }}
+            >
+              {sec.label}
+            </button>
+          ))}
+          <Divider />
+          {/* Appearance */}
+          <p className="text-xs font-semibold uppercase tracking-wider px-3 mb-1" style={{ color: 'var(--wb-text-3)' }}>Appearance</p>
+          <div className="px-3 py-2 flex items-center justify-between">
+            <span className="text-sm" style={{ color: 'var(--wb-text-2)' }}>Dark mode</span>
+            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+              style={{ background: theme === 'dark' ? 'var(--wb-accent)' : 'var(--wb-border)' }}>
+              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${theme === 'dark' ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
         </div>
 
-        <Tabs defaultValue="workspace">
-          <TabsList className="mb-6 bg-white/5 border border-white/8">
-            <TabsTrigger value="workspace" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-white/50">Workspace</TabsTrigger>
-            <TabsTrigger value="whatsapp" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-white/50">WhatsApp</TabsTrigger>
-            <TabsTrigger value="ai" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-white/50">AI</TabsTrigger>
-            <TabsTrigger value="billing" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-white/50">Billing</TabsTrigger>
-          </TabsList>
+        {/* Right content */}
+        <div className="flex-1 overflow-auto p-6 max-w-xl">
 
-          {/* Workspace tab */}
-          <TabsContent value="workspace">
-            <Card className="bg-white/5 border-white/8">
-              <CardHeader>
-                <CardTitle className="text-white">
-                  {activeWorkspace ? 'Workspace Settings' : 'Create Your Workspace'}
-                </CardTitle>
-                <CardDescription className="text-white/40">
-                  {activeWorkspace
-                    ? 'Update your workspace name and details'
-                    : 'You need a workspace to use WaBot. Create one to get started.'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-white/70">Workspace Name</label>
-                  <Input
-                    className="mt-1 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-green-500/50"
-                    placeholder="e.g. Acme Corp"
-                    value={wsName}
-                    onChange={(e) => setWsName(e.target.value)}
-                  />
-                </div>
+          {/* ── Workspace ── */}
+          {section === 'workspace' && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-base font-semibold mb-1" style={{ color: 'var(--wb-text)' }}>Workspace Settings</h2>
+                <p className="text-sm" style={{ color: 'var(--wb-text-3)' }}>Update your workspace name and business type</p>
+              </div>
+              <div className="space-y-4">
+                <Field label="Workspace Name">
+                  <input className={inp} style={inpStyle} placeholder="e.g. Raj's Hotel" value={wsName} onChange={(e) => setWsName(e.target.value)} />
+                </Field>
                 {activeWorkspace && (
-                  <div>
-                    <label className="text-sm font-medium text-white/40">Workspace ID</label>
-                    <Input
-                      className="mt-1 bg-white/5 border-white/10 text-white/30 font-mono text-xs"
-                      readOnly
-                      value={activeWorkspace.id}
-                    />
-                  </div>
+                  <Field label="Workspace ID">
+                    <input className={`${inp} font-mono text-xs opacity-50`} style={inpStyle} readOnly value={activeWorkspace.id} />
+                  </Field>
                 )}
-                <Button
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => saveWorkspaceName.mutate()}
-                  disabled={saveWorkspaceName.isPending || !wsName.trim()}
-                >
-                  {saveWorkspaceName.isPending
-                    ? (activeWorkspace ? 'Saving…' : 'Creating…')
-                    : (activeWorkspace ? 'Save' : 'Create Workspace')}
+                <Button className="bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
+                  onClick={() => saveWorkspaceName.mutate()} disabled={saveWorkspaceName.isPending || !wsName.trim()}>
+                  {saveWorkspaceName.isPending ? 'Saving…' : 'Save'}
                 </Button>
+              </div>
 
-                {/* Business Type */}
-                {activeWorkspace && (
-                  <div className="pt-2 border-t border-white/5">
-                    <label className="text-sm font-medium text-white/70">Business Type</label>
-                    <p className="text-xs text-white/40 mt-0.5 mb-3">
-                      Dashboard aur sidebar aapke business ke hisaab se badal jaata hai
-                    </p>
+              {activeWorkspace && (
+                <>
+                  <Divider />
+                  <div>
+                    <p className="text-sm font-medium mb-1" style={{ color: 'var(--wb-text)' }}>Business Type</p>
+                    <p className="text-xs mb-3" style={{ color: 'var(--wb-text-3)' }}>Your dashboard and flows adapt to your business type</p>
                     <div className="grid grid-cols-3 gap-2">
                       {BUSINESS_TYPES.map((biz) => (
-                        <button
-                          key={biz.type}
-                          onClick={() => { setBusinessType(biz.type); setBtChanged(true); }}
-                          className={`
-                            relative rounded-lg p-3 text-left transition-all border text-sm
-                            ${businessType === biz.type
-                              ? 'border-green-500 bg-green-500/10'
-                              : 'border-white/8 bg-white/5 hover:bg-white/8 hover:border-white/15'
-                            }
-                          `}
-                        >
-                          <span className="text-lg block mb-1">{biz.emoji}</span>
-                          <p className="font-medium text-white text-xs leading-tight">{biz.label}</p>
-                          <p className="text-white/35 text-xs mt-0.5 leading-snug">{biz.subtitle}</p>
+                        <button key={biz.type} onClick={() => { setBusinessType(biz.type); setBtChanged(true); }}
+                          className="rounded-lg p-3 text-left border transition-all text-xs"
+                          style={businessType === biz.type
+                            ? { border: '1px solid var(--wb-accent)', background: 'var(--wb-bg-active)' }
+                            : { border: '1px solid var(--wb-border)', background: 'var(--wb-bg)' }}>
+                          <span className="text-base block mb-1">{biz.emoji}</span>
+                          <p className="font-medium" style={{ color: 'var(--wb-text)' }}>{biz.label}</p>
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--wb-text-3)' }}>{biz.subtitle}</p>
                         </button>
                       ))}
                     </div>
-
                     {btChanged && businessType !== activeWorkspace.business_type && (
-                      <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2.5">
-                        <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
-                        <p className="text-xs text-amber-400">
-                          Business type change karne se aapka dashboard aur sidebar badal jayega.
-                        </p>
+                      <div className="mt-3 flex items-start gap-2 rounded-lg px-3 py-2.5" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                        <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-600 dark:text-amber-400">Changing business type will update your sidebar and dashboard.</p>
                       </div>
                     )}
-
-                    <Button
-                      className="mt-3 bg-green-600 hover:bg-green-700 text-white"
-                      onClick={() => saveBusinessType.mutate()}
-                      disabled={saveBusinessType.isPending || !btChanged || !businessType}
-                    >
+                    <Button className="mt-3 bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
+                      onClick={() => saveBusinessType.mutate()} disabled={saveBusinessType.isPending || !btChanged || !businessType}>
                       {saveBusinessType.isPending ? 'Saving…' : 'Save Business Type'}
                     </Button>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                </>
+              )}
+            </div>
+          )}
 
-          {/* WhatsApp tab */}
-          <TabsContent value="whatsapp">
-            {!activeWorkspace ? (
-              <Card className="bg-white/5 border-white/8">
-                <CardContent className="p-6 text-center text-white/40 text-sm">
-                  Create a workspace first in the Workspace tab.
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="bg-white/5 border-white/8">
-                <CardHeader>
-                  <CardTitle className="text-white">WhatsApp Business Connection</CardTitle>
-                  <CardDescription className="text-white/40">Connect your Meta WhatsApp Business account</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium text-white/70">Phone Number ID</label>
-                    <Input
-                      className="mt-1 bg-white/5 border-white/10 text-white placeholder:text-white/25"
-                      placeholder="From Meta Business Manager"
-                      value={waForm.wa_phone_number_id}
-                      onChange={(e) => setWaForm({ ...waForm, wa_phone_number_id: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-white/70">WhatsApp Business Account ID</label>
-                    <Input
-                      className="mt-1 bg-white/5 border-white/10 text-white placeholder:text-white/25"
-                      placeholder="e.g. 123456789012345"
-                      value={waForm.wa_business_id}
-                      onChange={(e) => setWaForm({ ...waForm, wa_business_id: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-white/70">Display Phone Number</label>
-                    <Input
-                      className="mt-1 bg-white/5 border-white/10 text-white placeholder:text-white/25"
-                      placeholder="+91 99999 99999"
-                      value={waForm.wa_phone_number}
-                      onChange={(e) => setWaForm({ ...waForm, wa_phone_number: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-white/70">Access Token</label>
-                    <Input
-                      className="mt-1 bg-white/5 border-white/10 text-white placeholder:text-white/25"
-                      type="password"
-                      placeholder="Permanent or temporary access token"
-                      value={waForm.wa_access_token}
-                      onChange={(e) => setWaForm({ ...waForm, wa_access_token: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-white/70">Webhook URL (copy to Meta)</label>
-                    <Input className="mt-1 bg-white/5 border-white/10 text-white/50 font-mono text-xs" readOnly value={webhookUrl} />
-                  </div>
-                  <Button
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    onClick={() => saveWa.mutate()}
-                    disabled={saveWa.isPending}
-                  >
+          {/* ── WhatsApp ── */}
+          {section === 'whatsapp' && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-base font-semibold mb-1" style={{ color: 'var(--wb-text)' }}>WhatsApp Connection</h2>
+                <p className="text-sm" style={{ color: 'var(--wb-text-3)' }}>Connect your Meta WhatsApp Business account</p>
+              </div>
+              {!activeWorkspace ? (
+                <p className="text-sm" style={{ color: 'var(--wb-text-3)' }}>Create a workspace first in Workspace Settings.</p>
+              ) : (
+                <div className="space-y-4">
+                  <Field label="Phone Number ID" hint="From Meta Business Manager → WhatsApp Accounts">
+                    <input className={inp} style={inpStyle} placeholder="e.g. 123456789012345"
+                      value={waForm.wa_phone_number_id} onChange={(e) => setWaForm({ ...waForm, wa_phone_number_id: e.target.value })} />
+                  </Field>
+                  <Field label="WhatsApp Business Account ID (WABA ID)">
+                    <input className={inp} style={inpStyle} placeholder="e.g. 987654321098765"
+                      value={waForm.wa_business_id} onChange={(e) => setWaForm({ ...waForm, wa_business_id: e.target.value })} />
+                  </Field>
+                  <Field label="Display Phone Number">
+                    <input className={inp} style={inpStyle} placeholder="+91 99999 99999"
+                      value={waForm.wa_phone_number} onChange={(e) => setWaForm({ ...waForm, wa_phone_number: e.target.value })} />
+                  </Field>
+                  <Field label="Access Token">
+                    <input className={inp} style={inpStyle} type="password" placeholder="Permanent or temporary access token"
+                      value={waForm.wa_access_token} onChange={(e) => setWaForm({ ...waForm, wa_access_token: e.target.value })} />
+                  </Field>
+                  <Field label="Webhook URL (copy to Meta)" hint="Set this as your webhook URL in Meta's WhatsApp settings">
+                    <input className={`${inp} font-mono text-xs opacity-60`} style={inpStyle} readOnly value={webhookUrl} />
+                  </Field>
+                  <Button className="bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
+                    onClick={() => saveWa.mutate()} disabled={saveWa.isPending}>
                     {saveWa.isPending ? 'Saving…' : 'Save'}
                   </Button>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* AI tab */}
-          <TabsContent value="ai">
-            <Card className="bg-white/5 border-white/8">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-lg bg-green-500/15">
-                    <Bot className="h-4 w-4 text-green-400" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-white">AI Settings</CardTitle>
-                    <CardDescription className="text-white/40">
-                      Configure the Groq-powered smart reply assistant
-                    </CardDescription>
-                  </div>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-1 divide-y divide-white/5">
-                <Toggle
-                  enabled={aiEnabled}
-                  onChange={setAiEnabled}
-                  label="AI Smart Reply"
-                  description="Automatically reply when no flow matches the customer's message"
-                />
-                <Toggle
-                  enabled={langDetect}
-                  onChange={setLangDetect}
-                  label="Auto Language Detection"
-                  description="Auto-detect customer language (Default: English — switches to Hindi only on explicit request)"
-                />
-                <div className="py-3 space-y-2">
-                  <div>
-                    <p className="text-sm font-medium text-white/80">AI Response Language</p>
-                    <p className="text-xs text-white/40 mt-0.5 mb-2">Override language detection with a fixed language</p>
-                  </div>
-                  <Select value={aiLang} onValueChange={(v) => v && setAiLang(v)} disabled={langDetect}>
-                    <SelectTrigger className="bg-white/5 border-white/10 text-white disabled:opacity-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#0d1424] border-white/10 text-white">
-                      {AI_LANGUAGES.map((l) => (
-                        <SelectItem key={l.value} value={l.value} className="hover:bg-white/5 focus:bg-white/5">
-                          {l.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {langDetect && (
-                    <p className="text-xs text-white/30">Disable Auto Language Detection to set a fixed language</p>
-                  )}
-                </div>
-                <div className="py-3 space-y-2">
-                  <div>
-                    <p className="text-sm font-medium text-white/80">System Prompt</p>
-                    <p className="text-xs text-white/40 mt-0.5 mb-2">
-                      Tell AI about this business — timings, menu, services, FAQs
-                    </p>
-                  </div>
-                  <textarea
-                    rows={5}
-                    className="w-full rounded-md bg-white/5 border border-white/10 text-white placeholder:text-white/25 text-sm px-3 py-2 resize-none focus:outline-none focus:border-green-500/50 disabled:opacity-40"
-                    placeholder="Example: You are assistant for XYZ Restaurant. Shop opens at 10 AM, closes at 10 PM. Menu includes..."
-                    value={systemPrompt}
-                    disabled={!activeWorkspace}
-                    onChange={(e) => setSystemPrompt(e.target.value)}
-                  />
-                  {!activeWorkspace && (
-                    <p className="text-xs text-white/30">Create a workspace first to save the system prompt</p>
-                  )}
-                </div>
+              )}
+            </div>
+          )}
 
-                <div className="pt-2">
-                  <Button
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    onClick={saveAiSettings}
-                  >
-                    {aiSaved ? (
-                      <><Check className="h-4 w-4 mr-1.5" />Saved</>
-                    ) : 'Save AI Settings'}
-                  </Button>
-                  <p className="text-xs text-white/25 mt-2">
-                    Requires <code className="text-white/40">GROQ_API_KEY</code> set on the backend server
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Billing tab */}
-          <TabsContent value="billing">
-            {!activeWorkspace ? (
-              <Card className="bg-white/5 border-white/8">
-                <CardContent className="p-6 text-center text-white/40 text-sm">
-                  Create a workspace first in the Workspace tab.
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {/* Current plan card */}
-                <Card className={sub?.status === 'active' ? 'border-green-500/30 bg-green-500/8' : 'border-blue-500/30 bg-blue-500/8'}>
-                  <CardContent className="p-5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-bold text-white capitalize">{sub?.plan ?? 'Free Trial'}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${sub?.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
-                            {sub?.status ?? 'trial'}
-                          </span>
-                        </div>
-                        {sub?.trial_ends_at && sub?.status === 'trial' && (
-                          <p className="text-xs text-white/50">
-                            Trial ends: {new Date(sub.trial_ends_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                          </p>
-                        )}
-                        {sub?.conversation_count !== undefined && (
-                          <p className="text-xs text-white/40 mt-1">
-                            {sub.conversation_count} / {sub.conversation_limit === -1 ? '∞' : sub.conversation_limit} conversations this month
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <p className="text-sm font-medium text-white/60">Upgrade your plan</p>
-
-                {[
-                  { id: 'starter', name: 'Starter', price: '₹999/mo', desc: '1 WhatsApp · 500 conversations · Basic flows + AI' },
-                  { id: 'growth',  name: 'Growth ⭐', price: '₹2,499/mo', desc: '1 WhatsApp · 2,000 conversations · Unlimited flows + Analytics' },
-                  { id: 'agency',  name: 'Agency', price: '₹6,999/mo', desc: '5 WhatsApp numbers · Unlimited conversations · Multi-agent inbox' },
-                ].map((plan) => (
-                  <Card key={plan.id} className={`bg-white/5 ${sub?.plan === plan.id && sub?.status === 'active' ? 'border-green-500/40' : 'border-white/8'}`}>
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div>
-                        <p className="font-semibold text-white">{plan.name} <span className="text-white/50 font-normal text-sm">— {plan.price}</span></p>
-                        <p className="text-xs text-white/40 mt-0.5">{plan.desc}</p>
-                      </div>
-                      <Button
-                        size="sm"
-                        className={sub?.plan === plan.id && sub?.status === 'active' ? 'border-white/20 text-white/60 bg-transparent border' : 'bg-green-600 hover:bg-green-700 text-white'}
-                        onClick={() => handleUpgrade(plan.id)}
-                        disabled={sub?.plan === plan.id && sub?.status === 'active'}
-                      >
-                        {sub?.plan === plan.id && sub?.status === 'active' ? 'Current Plan' : 'Upgrade'}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
+          {/* ── AI ── */}
+          {section === 'ai' && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-base font-semibold mb-1" style={{ color: 'var(--wb-text)' }}>AI Settings</h2>
+                <p className="text-sm" style={{ color: 'var(--wb-text-3)' }}>Configure the Groq-powered smart reply assistant</p>
               </div>
-            )}
-          </TabsContent>
-        </Tabs>
+              <div className="divide-y" style={{ borderColor: 'var(--wb-border)' }}>
+                <Toggle enabled={aiEnabled} onChange={setAiEnabled} label="AI Smart Reply"
+                  description="Auto-reply when no flow matches the customer's message" />
+                <Toggle enabled={langDetect} onChange={setLangDetect} label="Auto Language Detection"
+                  description="Default: English — switches to Hindi only on explicit customer request" />
+              </div>
+              <Field label="AI Response Language">
+                <Select value={aiLang} onValueChange={(v) => v && setAiLang(v)} disabled={langDetect}>
+                  <SelectTrigger className="text-sm h-9" style={{ background: 'var(--wb-bg)', border: '1px solid var(--wb-border)', color: 'var(--wb-text)' }}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent style={{ background: 'var(--wb-bg-sidebar)', border: '1px solid var(--wb-border)' }}>
+                    {AI_LANGUAGES.map((l) => (
+                      <SelectItem key={l.value} value={l.value} className="text-sm" style={{ color: 'var(--wb-text)' }}>{l.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="System Prompt" hint="Tell AI about your business — timings, menu, services, FAQs">
+                <textarea rows={5} className="w-full rounded-lg px-3 py-2 text-sm border focus:outline-none focus:ring-1 focus:ring-green-500/40 resize-none transition-colors"
+                  style={{ ...inpStyle, disabled: !activeWorkspace ? 'true' : undefined } as React.CSSProperties}
+                  placeholder="Example: You are an assistant for XYZ Restaurant. We open at 10 AM, close at 10 PM..."
+                  value={systemPrompt} disabled={!activeWorkspace}
+                  onChange={(e) => setSystemPrompt(e.target.value)} />
+              </Field>
+              <Button className="bg-green-600 hover:bg-green-700 text-white h-9 text-sm" onClick={saveAiSettings}>
+                {aiSaved ? <><Check className="h-3.5 w-3.5 mr-1.5" />Saved</> : 'Save AI Settings'}
+              </Button>
+            </div>
+          )}
+
+          {/* ── Billing ── */}
+          {section === 'billing' && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-base font-semibold mb-1" style={{ color: 'var(--wb-text)' }}>Billing & Plans</h2>
+                <p className="text-sm" style={{ color: 'var(--wb-text-3)' }}>Manage your subscription</p>
+              </div>
+              {!activeWorkspace ? (
+                <p className="text-sm" style={{ color: 'var(--wb-text-3)' }}>Create a workspace first.</p>
+              ) : (
+                <>
+                  {/* Current plan */}
+                  <div className="rounded-xl p-4" style={{ border: '1px solid var(--wb-border)', background: 'var(--wb-bg-card)' }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold capitalize text-sm" style={{ color: 'var(--wb-text)' }}>{sub?.plan ?? 'Free Trial'}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full capitalize"
+                        style={{ background: sub?.status === 'active' ? 'rgba(22,163,74,0.12)' : 'rgba(59,130,246,0.12)', color: sub?.status === 'active' ? '#16a34a' : '#3b82f6' }}>
+                        {sub?.status ?? 'trial'}
+                      </span>
+                    </div>
+                    {sub?.trial_ends_at && sub?.status === 'trial' && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--wb-text-3)' }}>
+                        Trial ends: {new Date(sub.trial_ends_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </p>
+                    )}
+                    {sub?.conversation_count !== undefined && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--wb-text-3)' }}>
+                        {sub.conversation_count} / {sub.conversation_limit === -1 ? '∞' : sub.conversation_limit} conversations this month
+                      </p>
+                    )}
+                  </div>
+
+                  <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--wb-text-3)' }}>Upgrade</p>
+
+                  {[
+                    { id: 'starter', name: 'Starter', price: '₹999/mo', desc: '1 WhatsApp · 500 conversations · Basic flows + AI' },
+                    { id: 'growth',  name: 'Growth ⭐', price: '₹2,499/mo', desc: '1 WhatsApp · 2,000 conversations · Unlimited flows' },
+                    { id: 'agency',  name: 'Agency', price: '₹6,999/mo', desc: '5 numbers · Unlimited conversations · Multi-agent' },
+                  ].map((plan) => {
+                    const isCurrent = sub?.plan === plan.id && sub?.status === 'active';
+                    return (
+                      <div key={plan.id} className="rounded-xl p-4 flex items-center justify-between"
+                        style={{ border: isCurrent ? '1px solid var(--wb-accent)' : '1px solid var(--wb-border)', background: 'var(--wb-bg)' }}>
+                        <div>
+                          <p className="text-sm font-semibold" style={{ color: 'var(--wb-text)' }}>
+                            {plan.name} <span className="font-normal text-xs" style={{ color: 'var(--wb-text-3)' }}>— {plan.price}</span>
+                          </p>
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--wb-text-3)' }}>{plan.desc}</p>
+                        </div>
+                        <button
+                          onClick={() => !isCurrent && handleUpgrade(plan.id)}
+                          disabled={isCurrent}
+                          className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0 ml-4"
+                          style={isCurrent
+                            ? { border: '1px solid var(--wb-border)', color: 'var(--wb-text-3)' }
+                            : { background: 'var(--wb-accent)', color: '#fff' }}>
+                          {isCurrent ? 'Current' : 'Upgrade'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </AppShell>
   );
