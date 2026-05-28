@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Apply stored theme before paint to avoid flash */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){var t=localStorage.getItem('wabot-theme');var d=window.matchMedia('(prefers-color-scheme:dark)').matches;if(t==='dark'||(t===null&&d)){document.documentElement.classList.add('dark')}})()`,
+            __html: `(function(){var t=localStorage.getItem('wabot-theme');var d=window.matchMedia('(prefers-color-scheme:dark)').matches;if(t==='dark'||(t==='system'&&d)||(t===null&&d)){document.documentElement.classList.add('dark')}})()`,
           }}
         />
       </head>

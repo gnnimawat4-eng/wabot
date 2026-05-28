@@ -5,37 +5,59 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
-type Theme = 'dark' | 'light';
+export type Theme = 'dark' | 'light' | 'system';
 
-const ThemeCtx = createContext<{ theme: Theme; setTheme: (t: Theme) => void; toggle: () => void }>({
-  theme: 'dark', setTheme: () => {}, toggle: () => {},
-});
+const ThemeCtx = createContext<{
+  theme: Theme;
+  resolvedTheme: 'dark' | 'light';
+  setTheme: (t: Theme) => void;
+  toggle: () => void;
+}>({ theme: 'dark', resolvedTheme: 'dark', setTheme: () => {}, toggle: () => {} });
 
 export const useTheme = () => useContext(ThemeCtx);
 
+function applyTheme(t: Theme) {
+  const isDark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.toggle('dark', isDark);
+  return isDark ? 'dark' : 'light';
+}
+
 function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('dark');
+  const [theme, setThemeState] = useState<Theme>('system');
+  const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
-    const stored = localStorage.getItem('wabot-theme') as Theme | null;
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const initial: Theme = stored ?? (systemDark ? 'dark' : 'light');
-    applyTheme(initial);
-    setThemeState(initial);
-  }, []);
+    const stored = (localStorage.getItem('wabot-theme') as Theme) ?? 'system';
+    const resolved = applyTheme(stored) as 'dark' | 'light';
+    setThemeState(stored);
+    setResolvedTheme(resolved);
 
-  const applyTheme = (t: Theme) => {
-    document.documentElement.classList.toggle('dark', t === 'dark');
-  };
+    // Watch system preference changes
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => {
+      if (stored === 'system') {
+        const r = applyTheme('system') as 'dark' | 'light';
+        setResolvedTheme(r);
+      }
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   const setTheme = (t: Theme) => {
     setThemeState(t);
     localStorage.setItem('wabot-theme', t);
-    applyTheme(t);
+    const resolved = applyTheme(t) as 'dark' | 'light';
+    setResolvedTheme(resolved);
+  };
+
+  const toggle = () => {
+    const next: Theme = theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light';
+    setTheme(next);
   };
 
   return (
-    <ThemeCtx.Provider value={{ theme, setTheme, toggle: () => setTheme(theme === 'dark' ? 'light' : 'dark') }}>
+    <ThemeCtx.Provider value={{ theme, resolvedTheme, setTheme, toggle }}>
       {children}
     </ThemeCtx.Provider>
   );

@@ -27,18 +27,18 @@
     --radius: 0.5rem;
 
     /* WaBot semantic tokens — light */
-    --wb-bg: #ffffff;
-    --wb-bg-sidebar: #f8f8f8;
-    --wb-bg-card: #ffffff;
-    --wb-bg-hover: #f3f4f6;
-    --wb-bg-active: #f0fdf4;
-    --wb-text: #1a1a1a;
-    --wb-text-2: #4b5563;
-    --wb-text-3: #9ca3af;
-    --wb-border: #e5e5e5;
-    --wb-border-2: #f0f0f0;
-    --wb-accent: #16a34a;
-    --wb-accent-hover: #15803d;
+    --wb-bg:          #ffffff;
+    --wb-bg-sidebar:  #f8f8f8;
+    --wb-bg-card:     #ffffff;
+    --wb-bg-hover:    #f3f4f6;
+    --wb-bg-active:   #f0fdf4;
+    --wb-text:        #111111;
+    --wb-text-2:      #4b5563;
+    --wb-text-3:      #9ca3af;
+    --wb-border:      #e5e5e5;
+    --wb-border-2:    #f0f0f0;
+    --wb-accent:      #16a34a;
+    --wb-accent-hover:#15803d;
   }
 
   /* ── Dark mode ────────────────────────────────────────────────────────────── */
@@ -64,18 +64,18 @@
     --ring: 142 71% 45%;
 
     /* WaBot semantic tokens — dark */
-    --wb-bg: #0a0a0a;
-    --wb-bg-sidebar: #111111;
-    --wb-bg-card: #161616;
-    --wb-bg-hover: rgba(255, 255, 255, 0.04);
-    --wb-bg-active: rgba(22, 163, 74, 0.1);
-    --wb-text: #ffffff;
-    --wb-text-2: rgba(255, 255, 255, 0.55);
-    --wb-text-3: rgba(255, 255, 255, 0.3);
-    --wb-border: #1f1f1f;
-    --wb-border-2: #161616;
-    --wb-accent: #16a34a;
-    --wb-accent-hover: #15803d;
+    --wb-bg:          #0a0a0a;
+    --wb-bg-sidebar:  #111111;
+    --wb-bg-card:     #161616;
+    --wb-bg-hover:    rgba(255, 255, 255, 0.04);
+    --wb-bg-active:   rgba(22, 163, 74, 0.1);
+    --wb-text:        #ffffff;
+    --wb-text-2:      rgba(255, 255, 255, 0.55);
+    --wb-text-3:      rgba(255, 255, 255, 0.3);
+    --wb-border:      #1f1f1f;
+    --wb-border-2:    #161616;
+    --wb-accent:      #16a34a;
+    --wb-accent-hover:#15803d;
   }
 
   * {
@@ -90,7 +90,130 @@
   }
 }
 
-/* Scrollbar */
+/* ─────────────────────────────────────────────────────────────────────────────
+   LIGHT MODE — Override all hardcoded dark Tailwind classes
+   Selector specificity: html:not(.dark) .cls = (0,2,1) beats single class (0,1,0)
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* ── Hardcoded dark hex backgrounds → white ── */
+html:not(.dark) .bg-\[#0a0f1e\],
+html:not(.dark) .bg-\[#0d1424\],
+html:not(.dark) .bg-\[#0a0a0a\],
+html:not(.dark) .bg-\[#111111\],
+html:not(.dark) .bg-\[#161616\],
+html:not(.dark) .bg-\[#1a1a2e\] { background-color: #ffffff !important; }
+
+html:not(.dark) .bg-\[#060b17\]\/95 { background-color: rgba(248,248,248,0.97) !important; }
+html:not(.dark) .bg-\[#060b17\]     { background-color: #f8f8f8 !important; }
+
+/* ── White/X opacity → light grays ── */
+html:not(.dark) .bg-white\/\[0\.02\],
+html:not(.dark) .bg-white\/3  { background-color: #fafafa !important; }
+html:not(.dark) .bg-white\/5  { background-color: #f8f8f8 !important; }
+html:not(.dark) .bg-white\/8  { background-color: #f2f2f2 !important; }
+html:not(.dark) .bg-white\/10 { background-color: #eeeeee !important; }
+html:not(.dark) .bg-white\/12 { background-color: #e9ecef !important; }
+html:not(.dark) .bg-white\/15 { background-color: #e5e7eb !important; }
+html:not(.dark) .bg-white\/20 { background-color: #d1d5db !important; }
+html:not(.dark) .bg-white\/25 { background-color: #d1d5db !important; }
+
+/* ── Text: white variants → dark ── */
+html:not(.dark) .text-white    { color: #111111 !important; }
+html:not(.dark) .text-white\/90 { color: #1f2937 !important; }
+html:not(.dark) .text-white\/80 { color: #374151 !important; }
+html:not(.dark) .text-white\/70 { color: #4b5563 !important; }
+html:not(.dark) .text-white\/60 { color: #6b7280 !important; }
+html:not(.dark) .text-white\/50 { color: #6b7280 !important; }
+html:not(.dark) .text-white\/40 { color: #9ca3af !important; }
+html:not(.dark) .text-white\/35 { color: #9ca3af !important; }
+html:not(.dark) .text-white\/30 { color: #9ca3af !important; }
+html:not(.dark) .text-white\/25 { color: #b0b8c1 !important; }
+html:not(.dark) .text-white\/20 { color: #c9d1d9 !important; }
+
+/* Restore white text on solid coloured buttons/badges */
+html:not(.dark) .bg-green-600, html:not(.dark) .bg-green-700 { color: #ffffff !important; }
+html:not(.dark) .bg-red-500,   html:not(.dark) .bg-red-600,  html:not(.dark) .bg-red-700   { color: #ffffff !important; }
+html:not(.dark) .bg-blue-600   { color: #ffffff !important; }
+html:not(.dark) .bg-yellow-500, html:not(.dark) .bg-yellow-600 { color: #ffffff !important; }
+html:not(.dark) .bg-orange-500  { color: #ffffff !important; }
+
+/* ── Borders: white/X → gray ── */
+html:not(.dark) .border-white\/5  { border-color: #f0f0f0 !important; }
+html:not(.dark) .border-white\/8  { border-color: #e8e8e8 !important; }
+html:not(.dark) .border-white\/10 { border-color: #e5e5e5 !important; }
+html:not(.dark) .border-white\/15 { border-color: #d1d5db !important; }
+html:not(.dark) .border-white\/20 { border-color: #d1d5db !important; }
+html:not(.dark) .divide-white\/5 > :not([hidden]) ~ :not([hidden]) { border-color: #f0f0f0 !important; }
+
+/* ── Hover states ── */
+html:not(.dark) .hover\:bg-white\/5:hover  { background-color: #f5f5f5 !important; }
+html:not(.dark) .hover\:bg-white\/8:hover  { background-color: #f0f0f0 !important; }
+html:not(.dark) .hover\:bg-white\/10:hover { background-color: #ebebeb !important; }
+html:not(.dark) .hover\:bg-white\/12:hover { background-color: #e5e5e5 !important; }
+
+/* ── Accent text: 400 variants too light on white → 600 ── */
+html:not(.dark) .text-green-400  { color: #16a34a !important; }
+html:not(.dark) .text-red-400    { color: #dc2626 !important; }
+html:not(.dark) .text-blue-400   { color: #2563eb !important; }
+html:not(.dark) .text-yellow-400 { color: #d97706 !important; }
+html:not(.dark) .text-orange-400 { color: #ea580c !important; }
+html:not(.dark) .text-purple-400 { color: #9333ea !important; }
+html:not(.dark) .text-indigo-400 { color: #4338ca !important; }
+html:not(.dark) .text-slate-400  { color: #64748b !important; }
+html:not(.dark) .text-amber-400  { color: #d97706 !important; }
+
+/* ── Opacity-tinted coloured backgrounds → light pastel versions ── */
+html:not(.dark) .bg-green-500\/8  { background-color: #f0fdf4 !important; }
+html:not(.dark) .bg-green-500\/10,
+html:not(.dark) .bg-green-500\/15 { background-color: #dcfce7 !important; }
+html:not(.dark) .bg-green-500\/20 { background-color: #bbf7d0 !important; }
+html:not(.dark) .bg-green-600\/20 { background-color: #dcfce7 !important; }
+html:not(.dark) .bg-red-500\/5,
+html:not(.dark) .bg-red-500\/10,
+html:not(.dark) .bg-red-500\/15   { background-color: #fee2e2 !important; }
+html:not(.dark) .bg-red-500\/20   { background-color: #fecaca !important; }
+html:not(.dark) .bg-red-600\/20,
+html:not(.dark) .bg-red-600\/80   { background-color: #fee2e2 !important; }
+html:not(.dark) .bg-blue-500\/10,
+html:not(.dark) .bg-blue-500\/15  { background-color: #dbeafe !important; }
+html:not(.dark) .bg-blue-600\/20  { background-color: #dbeafe !important; }
+html:not(.dark) .bg-yellow-500\/8,
+html:not(.dark) .bg-yellow-500\/15 { background-color: #fef9c3 !important; }
+html:not(.dark) .bg-orange-500\/15 { background-color: #ffedd5 !important; }
+html:not(.dark) .bg-purple-500\/15 { background-color: #f3e8ff !important; }
+html:not(.dark) .bg-amber-500\/10  { background-color: #fef3c7 !important; }
+html:not(.dark) .bg-slate-500\/15  { background-color: #f1f5f9 !important; }
+html:not(.dark) .bg-gray-500\/15   { background-color: #f9fafb !important; }
+html:not(.dark) .bg-indigo-500\/15 { background-color: #e0e7ff !important; }
+html:not(.dark) .bg-pink-500\/20   { background-color: #fce7f3 !important; }
+
+/* Gradient overlays */
+html:not(.dark) .from-blue-600\/20 { --tw-gradient-from: rgba(37,99,235,0.08); }
+html:not(.dark) .to-green-600\/20  { --tw-gradient-to: rgba(22,163,74,0.08); }
+
+/* ── Opacity-tinted border overrides ── */
+html:not(.dark) .border-green-500\/20,
+html:not(.dark) .border-green-500\/25 { border-color: #bbf7d0 !important; }
+html:not(.dark) .border-green-500\/30 { border-color: #86efac !important; }
+html:not(.dark) .border-red-500\/20,
+html:not(.dark) .border-red-500\/25   { border-color: #fecaca !important; }
+html:not(.dark) .border-blue-500\/15,
+html:not(.dark) .border-blue-500\/25  { border-color: #bfdbfe !important; }
+html:not(.dark) .border-yellow-500\/20,
+html:not(.dark) .border-yellow-500\/25 { border-color: #fde68a !important; }
+html:not(.dark) .border-amber-500\/20  { border-color: #fde68a !important; }
+html:not(.dark) .border-dashed        { border-style: dashed; }
+
+/* ── Placeholder text ── */
+html:not(.dark) ::placeholder { color: #9ca3af; }
+
+/* ── Inline focus rings ── */
+html:not(.dark) .focus\:border-green-500\/50:focus  { border-color: #16a34a !important; }
+html:not(.dark) .focus\:border-green-500\/60:focus  { border-color: #16a34a !important; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Scrollbar
+   ──────────────────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--wb-border); border-radius: 2px; }

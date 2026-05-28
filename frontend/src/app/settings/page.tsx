@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useWorkspaceStore } from '@/lib/store';
 import { createWorkspace, updateWorkspace, getSubscription, createSubscription } from '@/lib/api';
 import { BUSINESS_TYPES, type BusinessType } from '@/lib/businessConfig';
-import { useTheme } from '@/app/providers';
+import { useTheme, type Theme } from '@/app/providers';
 import { toast } from 'sonner';
 
 const AI_LANGUAGES = [
@@ -200,14 +200,22 @@ export default function SettingsPage() {
           ))}
           <Divider />
           {/* Appearance */}
-          <p className="text-xs font-semibold uppercase tracking-wider px-3 mb-1" style={{ color: 'var(--wb-text-3)' }}>Appearance</p>
-          <div className="px-3 py-2 flex items-center justify-between">
-            <span className="text-sm" style={{ color: 'var(--wb-text-2)' }}>Dark mode</span>
-            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-              style={{ background: theme === 'dark' ? 'var(--wb-accent)' : 'var(--wb-border)' }}>
-              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${theme === 'dark' ? 'translate-x-4' : 'translate-x-0.5'}`} />
-            </button>
+          <p className="text-xs font-semibold uppercase tracking-wider px-3 mb-2" style={{ color: 'var(--wb-text-3)' }}>Appearance</p>
+          <div className="px-3">
+            <div className="flex rounded-lg overflow-hidden p-0.5" style={{ background: 'var(--wb-bg-hover)', gap: '2px' }}>
+              {(['system', 'light', 'dark'] as const).map((t) => (
+                <button key={t} onClick={() => setTheme(t)}
+                  className="flex-1 py-1.5 text-xs font-medium capitalize rounded transition-colors"
+                  style={theme === t
+                    ? { background: 'var(--wb-accent)', color: '#ffffff' }
+                    : { color: 'var(--wb-text-2)' }}>
+                  {t === 'system' ? 'Auto' : t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs mt-1.5" style={{ color: 'var(--wb-text-3)' }}>
+              {theme === 'system' ? 'Follows your device theme' : theme === 'dark' ? 'Always dark' : 'Always light'}
+            </p>
           </div>
         </div>
 
