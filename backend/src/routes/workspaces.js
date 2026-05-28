@@ -59,6 +59,17 @@ module.exports = async function workspaceRoutes(fastify) {
       .select()
       .single();
     if (error) throw error;
+
+    // Auto-create 7-day trial subscription
+    await supabase.from('subscriptions').insert({
+      workspace_id: data.id,
+      user_id: userId,
+      plan: 'trial',
+      status: 'trial',
+      amount: 0,
+      trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    }).catch((e) => console.error('Trial subscription error:', e.message));
+
     return reply.code(201).send(toWorkspace(data));
   });
 

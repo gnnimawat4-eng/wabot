@@ -117,6 +117,14 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
     status: 'delivered',
   });
 
+  // Increment conversation count for billing (fire-and-forget)
+  const month = new Date().toISOString().slice(0, 7);
+  supabase.from('conversation_counts').select('id, count').eq('workspace_id', workspace.id).eq('month', month).maybeSingle()
+    .then(({ data: cc }) => cc
+      ? supabase.from('conversation_counts').update({ count: cc.count + 1, updated_at: new Date().toISOString() }).eq('id', cc.id)
+      : supabase.from('conversation_counts').insert({ workspace_id: workspace.id, month, count: 1 })
+    ).catch(() => {});
+
   // Mark read — live DB column is access_token (not wa_access_token)
   if (workspace.access_token) {
     await wa.markRead(phoneNumberId, workspace.access_token, msg.id).catch(() => {});

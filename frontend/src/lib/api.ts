@@ -130,5 +130,13 @@ export const createSubscription = (plan: string, workspaceId: string) =>
   api.post('/billing/subscribe', { plan, workspaceId }).then((r) => r.data);
 export const getSubscription = (workspaceId: string) =>
   api.get(`/billing/subscription/${workspaceId}`).then((r) => r.data);
+export const createOrder = (workspaceId: string, plan: string) =>
+  api.post('/billing/create-order', { plan, workspaceId }).then((r) => r.data);
+
+// Admin (gnnimawat4@gmail.com only)
+export const getAdminOverview = () => api.get('/admin/overview').then((r) => r.data);
+export const getAdminCustomers = () => api.get('/admin/customers').then((r) => r.data);
+export const getAdminRevenue = () => api.get('/admin/revenue').then((r) => r.data);
+export const getAdminErrors = () => api.get('/admin/errors').then((r) => r.data);
 
 export default api;

@@ -49,6 +49,7 @@ app.register(require('./routes/broadcasts'), { prefix: '/workspaces' });
 app.register(require('./routes/hotelRooms'), { prefix: '/workspaces' });
 app.register(require('./routes/businessData'), { prefix: '/workspaces' });
 app.register(require('./routes/billing'), { prefix: '/billing' });
+app.register(require('./routes/admin'), { prefix: '/admin' });
 
 const start = async () => {
   try {

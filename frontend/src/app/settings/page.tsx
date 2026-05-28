@@ -168,6 +168,38 @@ export default function SettingsPage() {
     onError: () => toast.error('Failed to create subscription'),
   });
 
+  const handleUpgrade = async (plan: string) => {
+    if (!activeWorkspace) return;
+    try {
+      // Dynamically load Razorpay
+      await new Promise<void>((res, rej) => {
+        if ((window as Window & typeof globalThis & { Razorpay?: unknown }).Razorpay) { res(); return; }
+        const s = document.createElement('script');
+        s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        s.onload = () => res(); s.onerror = () => rej(new Error('Failed to load Razorpay'));
+        document.body.appendChild(s);
+      });
+      const { data: session } = await (await import('@/lib/supabase')).supabase.auth.getSession();
+      const token = session.session?.access_token;
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/billing/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ plan, workspaceId: activeWorkspace.id }),
+      });
+      if (!res.ok) { toast.error('Payment gateway not configured yet'); return; }
+      const { orderId, amount, key } = await res.json();
+      const rzp = new (window as Window & typeof globalThis & { Razorpay: new (o: Record<string, unknown>) => { open(): void } }).Razorpay({
+        key, amount, currency: 'INR', order_id: orderId,
+        name: 'WaBot', description: `${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan`,
+        handler: () => {
+          toast.success('Payment successful! Your plan is now active 🚀');
+          qc.invalidateQueries({ queryKey: ['subscription', activeWorkspace.id] });
+        },
+      });
+      rzp.open();
+    } catch { toast.error('Payment setup failed'); }
+  };
+
   const webhookUrl = typeof window !== 'undefined'
     ? `${process.env.NEXT_PUBLIC_API_URL}/webhook/whatsapp`
     : '';
@@ -445,31 +477,52 @@ export default function SettingsPage() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {sub?.plan && (
-                  <Card className="border-green-500/30 bg-green-500/10">
-                    <CardContent className="p-4">
-                      <p className="text-sm font-medium text-green-400">
-                        Current plan: <span className="capitalize">{sub.plan}</span>
-                      </p>
-                      <p className="text-xs text-green-500/70 mt-0.5">Status: {sub.status}</p>
-                    </CardContent>
-                  </Card>
-                )}
-                {PLANS.map((plan) => (
-                  <Card key={plan.id} className={`bg-white/5 ${sub?.plan === plan.id ? 'border-green-500/40' : 'border-white/8'}`}>
+                {/* Current plan card */}
+                <Card className={sub?.status === 'active' ? 'border-green-500/30 bg-green-500/8' : 'border-blue-500/30 bg-blue-500/8'}>
+                  <CardContent className="p-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-bold text-white capitalize">{sub?.plan ?? 'Free Trial'}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${sub?.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                            {sub?.status ?? 'trial'}
+                          </span>
+                        </div>
+                        {sub?.trial_ends_at && sub?.status === 'trial' && (
+                          <p className="text-xs text-white/50">
+                            Trial ends: {new Date(sub.trial_ends_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </p>
+                        )}
+                        {sub?.conversation_count !== undefined && (
+                          <p className="text-xs text-white/40 mt-1">
+                            {sub.conversation_count} / {sub.conversation_limit === -1 ? '∞' : sub.conversation_limit} conversations this month
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <p className="text-sm font-medium text-white/60">Upgrade your plan</p>
+
+                {[
+                  { id: 'starter', name: 'Starter', price: '₹999/mo', desc: '1 WhatsApp · 500 conversations · Basic flows + AI' },
+                  { id: 'growth',  name: 'Growth ⭐', price: '₹2,499/mo', desc: '1 WhatsApp · 2,000 conversations · Unlimited flows + Analytics' },
+                  { id: 'agency',  name: 'Agency', price: '₹6,999/mo', desc: '5 WhatsApp numbers · Unlimited conversations · Multi-agent inbox' },
+                ].map((plan) => (
+                  <Card key={plan.id} className={`bg-white/5 ${sub?.plan === plan.id && sub?.status === 'active' ? 'border-green-500/40' : 'border-white/8'}`}>
                     <CardContent className="p-4 flex items-center justify-between">
                       <div>
-                        <p className="font-semibold text-white">{plan.name} — {plan.price}</p>
-                        <p className="text-sm text-white/40 mt-0.5">{plan.desc}</p>
+                        <p className="font-semibold text-white">{plan.name} <span className="text-white/50 font-normal text-sm">— {plan.price}</span></p>
+                        <p className="text-xs text-white/40 mt-0.5">{plan.desc}</p>
                       </div>
                       <Button
-                        variant={sub?.plan === plan.id ? 'outline' : 'default'}
                         size="sm"
-                        className={sub?.plan === plan.id ? 'border-white/20 text-white/60' : 'bg-green-600 hover:bg-green-700 text-white'}
-                        onClick={() => subscribe.mutate(plan.id)}
-                        disabled={subscribe.isPending || sub?.plan === plan.id}
+                        className={sub?.plan === plan.id && sub?.status === 'active' ? 'border-white/20 text-white/60 bg-transparent border' : 'bg-green-600 hover:bg-green-700 text-white'}
+                        onClick={() => handleUpgrade(plan.id)}
+                        disabled={sub?.plan === plan.id && sub?.status === 'active'}
                       >
-                        {sub?.plan === plan.id ? 'Current' : 'Subscribe'}
+                        {sub?.plan === plan.id && sub?.status === 'active' ? 'Current Plan' : 'Upgrade'}
                       </Button>
                     </CardContent>
                   </Card>

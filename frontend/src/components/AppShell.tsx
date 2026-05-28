@@ -12,6 +12,7 @@ import { useWorkspaceStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { getBusinessConfig, DEFAULT_NAV, type NavItem } from '@/lib/businessConfig';
 import { OnboardingModal } from '@/components/OnboardingModal';
+import { getSubscription } from '@/lib/api';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -43,6 +44,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     queryFn: getWorkspaces,
     retry: 1,
   });
+
+  const { data: subscription } = useQuery({
+    queryKey: ['subscription', activeWorkspace?.id],
+    queryFn: () => getSubscription(activeWorkspace!.id),
+    enabled: !!activeWorkspace,
+    refetchInterval: 300_000,
+    retry: 1,
+  });
+
+  // Trial banner
+  const trialDaysLeft = (() => {
+    if (!subscription?.trial_ends_at || subscription.status !== 'trial') return null;
+    const d = Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / 86400000);
+    return d;
+  })();
+
+  // Conversation limit banner
+  const limitInfo = (() => {
+    const count = subscription?.conversation_count ?? 0;
+    const limit = subscription?.conversation_limit ?? 0;
+    if (!limit || limit < 0) return null;
+    const pct = count / limit;
+    if (pct >= 1) return { type: 'danger' as const, count, limit };
+    if (pct >= 0.8) return { type: 'warn' as const, count, limit };
+    return null;
+  })();
 
   const { data: recentContacts } = useQuery({
     queryKey: ['inbox-activity', activeWorkspace?.id],
@@ -191,8 +218,42 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-auto bg-[#0a0f1e]">
-          {children}
+        <main className="flex-1 overflow-auto bg-[#0a0f1e] flex flex-col">
+          {/* Trial banner */}
+          {trialDaysLeft !== null && trialDaysLeft > 0 && (
+            <div className="bg-gradient-to-r from-blue-600/20 to-green-600/20 border-b border-white/5 px-4 py-2 flex items-center justify-between gap-3 text-sm shrink-0">
+              <span className="text-white/80">
+                🎉 <strong>Free Trial:</strong> {trialDaysLeft} day{trialDaysLeft !== 1 ? 's' : ''} remaining
+              </span>
+              <Link href="/pricing" className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-full font-medium transition-colors shrink-0">
+                Upgrade now
+              </Link>
+            </div>
+          )}
+          {trialDaysLeft !== null && trialDaysLeft <= 0 && subscription?.status === 'trial' && (
+            <div className="bg-red-600/20 border-b border-red-500/20 px-4 py-2 flex items-center justify-between gap-3 text-sm shrink-0">
+              <span className="text-red-300">⚠️ <strong>Trial expired.</strong> Upgrade to keep your automation running.</span>
+              <Link href="/pricing" className="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-full font-medium transition-colors shrink-0">Upgrade</Link>
+            </div>
+          )}
+          {/* Conversation limit banners */}
+          {limitInfo?.type === 'warn' && (
+            <div className="bg-yellow-500/15 border-b border-yellow-500/20 px-4 py-2 flex items-center justify-between gap-3 text-sm shrink-0">
+              <span className="text-yellow-300">
+                ⚡ {limitInfo.count} conversations used, {limitInfo.limit - limitInfo.count} remaining this month
+              </span>
+              <Link href="/pricing" className="text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded-full font-medium transition-colors shrink-0">Upgrade</Link>
+            </div>
+          )}
+          {limitInfo?.type === 'danger' && (
+            <div className="bg-red-600/20 border-b border-red-500/20 px-4 py-2 flex items-center justify-between gap-3 text-sm shrink-0">
+              <span className="text-red-300">🚫 <strong>Monthly limit reached</strong> — upgrade your plan to continue receiving messages</span>
+              <Link href="/pricing" className="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-full font-medium transition-colors shrink-0">Upgrade now</Link>
+            </div>
+          )}
+          <div className="flex-1 overflow-auto">
+            {children}
+          </div>
         </main>
       </div>
     </>
