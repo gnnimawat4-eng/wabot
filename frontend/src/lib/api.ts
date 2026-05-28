@@ -75,6 +75,30 @@ export const updateLocation = (workspaceId: string, locationId: string, name: st
 export const deleteLocation = (workspaceId: string, locationId: string) =>
   api.delete(`/workspaces/${workspaceId}/locations/${locationId}`);
 
+// Generic business data
+export const getBusinessItems = (workspaceId: string, category: string) =>
+  api.get(`/workspaces/${workspaceId}/business-items`, { params: { category } }).then((r) => r.data);
+export const createBusinessItem = (workspaceId: string, data: Record<string, unknown>) =>
+  api.post(`/workspaces/${workspaceId}/business-items`, data).then((r) => r.data);
+export const deleteBusinessItem = (workspaceId: string, itemId: string) =>
+  api.delete(`/workspaces/${workspaceId}/business-items/${itemId}`);
+
+export const getBusinessAppointments = (workspaceId: string, type: string) =>
+  api.get(`/workspaces/${workspaceId}/business-appointments`, { params: { type } }).then((r) => r.data);
+export const createBusinessAppointment = (workspaceId: string, data: Record<string, unknown>) =>
+  api.post(`/workspaces/${workspaceId}/business-appointments`, data).then((r) => r.data);
+export const updateBusinessAppointment = (workspaceId: string, apptId: string, data: Record<string, unknown>) =>
+  api.patch(`/workspaces/${workspaceId}/business-appointments/${apptId}`, data).then((r) => r.data);
+export const deleteBusinessAppointment = (workspaceId: string, apptId: string) =>
+  api.delete(`/workspaces/${workspaceId}/business-appointments/${apptId}`);
+
+export const getBusinessLeads = (workspaceId: string) =>
+  api.get(`/workspaces/${workspaceId}/business-leads`).then((r) => r.data);
+export const createBusinessLead = (workspaceId: string, data: Record<string, unknown>) =>
+  api.post(`/workspaces/${workspaceId}/business-leads`, data).then((r) => r.data);
+export const deleteBusinessLead = (workspaceId: string, leadId: string) =>
+  api.delete(`/workspaces/${workspaceId}/business-leads/${leadId}`);
+
 // Hotel Rooms
 export const getHotelRooms = (workspaceId: string) =>
   api.get(`/workspaces/${workspaceId}/hotel-rooms`).then((r) => r.data);
