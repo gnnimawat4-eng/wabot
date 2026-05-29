@@ -331,7 +331,7 @@ export default function SettingsPage() {
   const webhookUrl = typeof window !== 'undefined' ? `${process.env.NEXT_PUBLIC_API_URL}/webhook/whatsapp` : '';
 
   const inp = "w-full rounded-lg px-3 py-2 text-sm border focus:outline-none focus:ring-1 focus:ring-green-500/40 transition-colors";
-  const inpStyle: React.CSSProperties = { background: 'var(--wb-bg)', border: '1px solid var(--wb-border)', color: 'var(--wb-text)' };
+  const inpStyle: React.CSSProperties = { background: 'var(--wb-input)', border: '1px solid var(--wb-input-border)', color: 'var(--wb-text)' };
 
   return (
     <AppShell>

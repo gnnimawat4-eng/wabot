@@ -32,6 +32,8 @@
     --wb-bg-card:     #ffffff;
     --wb-bg-hover:    #f3f4f6;
     --wb-bg-active:   rgba(255, 4, 54, 0.06);
+    --wb-input:       #ffffff;
+    --wb-input-border:#e0e0e0;
     --wb-text:        #111111;
     --wb-text-2:      #4b5563;
     --wb-text-3:      #9ca3af;
@@ -54,14 +56,14 @@
     --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 11%;
     --secondary-foreground: 213 31% 91%;
-    --muted: 0 0% 11%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 0 0% 12%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 215 16% 55%;
+    --accent: 0 0% 14%;
     --accent-foreground: 213 31% 91%;
     --destructive: 0 63% 31%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 12%;
-    --input: 0 0% 12%;
+    --border: 0 0% 18%;
+    --input: 0 0% 16%;
     --ring: 349 100% 60%;
 
     /* WaBot semantic tokens — dark */
@@ -70,6 +72,8 @@
     --wb-bg-card:     #252525;
     --wb-bg-hover:    #2a2a2a;
     --wb-bg-active:   rgba(255, 4, 54, 0.14);
+    --wb-input:       #2a2a2a;
+    --wb-input-border:#3a3a3a;
     --wb-text:        #f0f0f0;
     --wb-text-2:      #888888;
     --wb-text-3:      #555555;
@@ -90,6 +94,53 @@
     color: var(--wb-text);
     @apply antialiased;
   }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DARK MODE VISIBILITY FIXES
+   All rules scoped to .dark so they never affect light mode.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* ── text-white = truly white in dark mode, always ── */
+.dark .text-white { color: #f0f0f0 !important; }
+
+/* ── Primary/coloured buttons: white text regardless of inheritance ── */
+.dark .bg-green-600,
+.dark .bg-green-500,
+.dark .bg-green-700,
+.dark .bg-blue-600,
+.dark .bg-blue-700,
+.dark .bg-purple-600,
+.dark .bg-purple-700,
+.dark .bg-red-500,
+.dark .bg-red-600,
+.dark .bg-orange-500,
+.dark .bg-yellow-500,
+.dark .bg-yellow-600 { color: #ffffff !important; }
+
+/* ── Outline / secondary buttons in dark mode ── */
+.dark button[class*="border-white"],
+.dark button[class*="border-white\/10"] {
+  border-color: #2e2e2e !important;
+  color: #f0f0f0 !important;
+}
+.dark button[class*="border-white"]:hover {
+  background-color: #2a2a2a !important;
+}
+
+/* ── Input / textarea / select in dark mode ── */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]):not([type="button"]),
+.dark textarea,
+.dark select {
+  background-color: var(--wb-input) !important;
+  color: var(--wb-text) !important;
+  border-color: var(--wb-input-border) !important;
+}
+.dark ::placeholder { color: #666666 !important; }
+
+/* ── bg-white/5 inputs used in dialog forms — dark mode ── */
+.dark .bg-white\/5 {
+  background-color: var(--wb-input) !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -129,7 +180,7 @@ html:not(.dark) .bg-white\/15 { background-color: #e5e7eb !important; }
 html:not(.dark) .bg-white\/20 { background-color: #d1d5db !important; }
 html:not(.dark) .bg-white\/25 { background-color: #d1d5db !important; }
 
-/* ── Text: white variants → dark ── */
+/* ── Text: white variants → dark (light mode only) ── */
 html:not(.dark) .text-white    { color: #111111 !important; }
 html:not(.dark) .text-white\/90 { color: #1f2937 !important; }
 html:not(.dark) .text-white\/80 { color: #374151 !important; }
@@ -142,11 +193,20 @@ html:not(.dark) .text-white\/30 { color: #9ca3af !important; }
 html:not(.dark) .text-white\/25 { color: #b0b8c1 !important; }
 html:not(.dark) .text-white\/20 { color: #c9d1d9 !important; }
 
-/* Restore white text on solid coloured buttons/badges */
-html:not(.dark) .bg-green-600, html:not(.dark) .bg-green-700 { color: #ffffff !important; }
-html:not(.dark) .bg-red-500,   html:not(.dark) .bg-red-600,  html:not(.dark) .bg-red-700   { color: #ffffff !important; }
-html:not(.dark) .bg-blue-600   { color: #ffffff !important; }
-html:not(.dark) .bg-yellow-500, html:not(.dark) .bg-yellow-600 { color: #ffffff !important; }
+/* ── Restore white text on solid coloured buttons/badges (light mode) ── */
+/* These come after text-white override so win via source order + same specificity */
+html:not(.dark) .bg-green-600,
+html:not(.dark) .bg-green-500,
+html:not(.dark) .bg-green-700 { color: #ffffff !important; }
+html:not(.dark) .bg-red-500,
+html:not(.dark) .bg-red-600,
+html:not(.dark) .bg-red-700   { color: #ffffff !important; }
+html:not(.dark) .bg-blue-600,
+html:not(.dark) .bg-blue-700  { color: #ffffff !important; }
+html:not(.dark) .bg-purple-600,
+html:not(.dark) .bg-purple-700 { color: #ffffff !important; }
+html:not(.dark) .bg-yellow-500,
+html:not(.dark) .bg-yellow-600 { color: #ffffff !important; }
 html:not(.dark) .bg-orange-500  { color: #ffffff !important; }
 
 /* ── Borders: white/X → gray ── */
@@ -219,7 +279,7 @@ html:not(.dark) .border-yellow-500\/25 { border-color: #fde68a !important; }
 html:not(.dark) .border-amber-500\/20  { border-color: #fde68a !important; }
 html:not(.dark) .border-dashed        { border-style: dashed; }
 
-/* ── Placeholder text ── */
+/* ── Placeholder text (light mode) ── */
 html:not(.dark) ::placeholder { color: #9ca3af; }
 
 /* ── Focus rings ── */
