@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, Check, AlertTriangle, Trash2, RotateCcw } from 'lucide-react';
+import { Bot, Check, AlertTriangle, Trash2, RotateCcw, Palette } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useWorkspaceStore } from '@/lib/store';
 import { createWorkspace, updateWorkspace, getSubscription, createSubscription, getTrash, restoreTrashItem, permanentDeleteTrashItem } from '@/lib/api';
 import { BUSINESS_TYPES, type BusinessType } from '@/lib/businessConfig';
-import { useTheme, type Theme } from '@/app/providers';
+import { useTheme, useAccent, type AccentKey, ACCENT_DEFS, type Theme } from '@/app/providers';
 import { toast } from 'sonner';
 
 const AI_LANGUAGES = [
@@ -150,7 +150,7 @@ function TrashSection({ workspaceId, onRestore }: { workspaceId: string; onResto
                   onClick={() => restore.mutate({ type: tab, id: item.id })}
                   disabled={restore.isPending}
                   className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ background: 'rgba(255,4,54,0.12)', color: '#FF0436' }}>
+                  style={{ background: 'var(--wb-bg-active)', color: 'var(--wb-accent)' }}>
                   <RotateCcw className="h-3 w-3" />Restore
                 </button>
                 <button
@@ -206,6 +206,7 @@ export default function SettingsPage() {
   const { activeWorkspace, setWorkspaces, workspaces } = useWorkspaceStore();
   const qc = useQueryClient();
   const { theme, setTheme } = useTheme();
+  const { accent, setAccent } = useAccent();
   const [section, setSection] = useState<Section>('workspace');
 
   const [wsName, setWsName] = useState('');
@@ -381,6 +382,46 @@ export default function SettingsPage() {
               {theme === 'system' ? 'Follows your device theme' : theme === 'dark' ? 'Always dark' : 'Always light'}
             </p>
           </div>
+
+          {/* Accent color */}
+          <Divider />
+          <div className="px-1">
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <Palette className="h-3 w-3" style={{ color: 'var(--wb-text-3)' }} />
+              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--wb-text-3)' }}>Accent Color</p>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Red */}
+              {(['red', 'green', 'neutral'] as AccentKey[]).map((key) => {
+                const isSelected = accent === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setAccent(key)}
+                    title={ACCENT_DEFS[key].label}
+                    className="relative h-7 w-7 rounded-full flex items-center justify-center transition-transform hover:scale-110 overflow-hidden"
+                    style={{
+                      outline: isSelected ? '2px solid var(--wb-text)' : '2px solid var(--wb-border)',
+                      outlineOffset: '2px',
+                    }}
+                  >
+                    {key === 'neutral' ? (
+                      <>
+                        <span className="absolute inset-0" style={{ background: '#111111', clipPath: 'polygon(0 0,50% 0,50% 100%,0 100%)' }} />
+                        <span className="absolute inset-0" style={{ background: '#ffffff', clipPath: 'polygon(50% 0,100% 0,100% 100%,50% 100%)' }} />
+                        {isSelected && <Check className="h-3 w-3 relative z-10 text-gray-500" />}
+                      </>
+                    ) : (
+                      <>
+                        <span className="absolute inset-0" style={{ background: ACCENT_DEFS[key].accent }} />
+                        {isSelected && <Check className="h-3 w-3 relative z-10 text-white" />}
+                      </>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Right content */}
@@ -541,7 +582,7 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-semibold capitalize text-sm" style={{ color: 'var(--wb-text)' }}>{sub?.plan ?? 'Free Trial'}</span>
                       <span className="text-xs px-2 py-0.5 rounded-full capitalize"
-                        style={{ background: sub?.status === 'active' ? 'rgba(255,4,54,0.12)' : 'rgba(59,130,246,0.12)', color: sub?.status === 'active' ? '#FF0436' : '#3b82f6' }}>
+                        style={{ background: sub?.status === 'active' ? 'var(--wb-bg-active)' : 'rgba(59,130,246,0.12)', color: sub?.status === 'active' ? 'var(--wb-accent)' : '#3b82f6' }}>
                         {sub?.status ?? 'trial'}
                       </span>
                     </div>

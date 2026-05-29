@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { useWorkspaceStore } from '@/lib/store';
 import { getWorkspaceStats } from '@/lib/api';
 import { getBusinessConfig } from '@/lib/businessConfig';
+import { useAccent } from '@/app/providers';
 
 function SkeletonCard() {
   return (
@@ -34,6 +35,7 @@ function StatCard({ title, value, emoji, accent }: { title: string; value: strin
 export default function DashboardPage() {
   const { activeWorkspace } = useWorkspaceStore();
   const businessConfig = getBusinessConfig(activeWorkspace?.business_type);
+  const { accentHex } = useAccent();
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['stats', activeWorkspace?.id],
@@ -111,7 +113,7 @@ export default function DashboardPage() {
                 <XAxis dataKey="day" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.35)' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.35)' }} axisLine={false} tickLine={false} width={28} />
                 <Tooltip contentStyle={{ background: '#252525', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff' }} labelStyle={{ color: 'rgba(255,255,255,0.6)' }} />
-                <Area type="monotone" dataKey="inbound" stackId="1" stroke="#FF0436" fill="rgba(255,4,54,0.12)" name="Inbound" />
+                <Area type="monotone" dataKey="inbound" stackId="1" stroke={accentHex} fill={`${accentHex}1f`} name="Inbound" />
                 <Area type="monotone" dataKey="outbound" stackId="1" stroke="#3b82f6" fill="rgba(59,130,246,0.12)" name="Outbound" />
               </AreaChart>
             </ResponsiveContainer>
