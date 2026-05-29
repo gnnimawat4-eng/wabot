@@ -71,6 +71,7 @@ interface AccentDef {
   hex: string;          // display hex for the circle swatch
   accent: string;
   hover: string;
+  accentText: string;   // --wb-accent-text: contrasting text color on accent bg
   tintDark: string;     // --wb-bg-active in dark mode
   tintLight: string;    // --wb-bg-active in light mode
   ringDark: string;     // --wb-accent-ring in dark mode
@@ -81,18 +82,21 @@ export const ACCENT_DEFS: Record<AccentKey, AccentDef> = {
   red: {
     label: 'Red',     hex: '#FF0436',
     accent: '#FF0436', hover: '#cc0329',
+    accentText: '#ffffff',
     tintDark: 'rgba(255,4,54,0.14)',   tintLight: 'rgba(255,4,54,0.06)',
     ringDark: 'rgba(255,4,54,0.40)',   ringLight: 'rgba(255,4,54,0.40)',
   },
   green: {
     label: 'Green',   hex: '#16a34a',
     accent: '#16a34a', hover: '#15803d',
+    accentText: '#ffffff',
     tintDark: 'rgba(22,163,74,0.14)',  tintLight: 'rgba(22,163,74,0.06)',
     ringDark: 'rgba(22,163,74,0.40)',  ringLight: 'rgba(22,163,74,0.40)',
   },
   neutral: {
     label: 'Neutral', hex: '',          // theme-dependent, rendered specially
     accent: '',        hover: '',        // set at runtime based on resolved theme
+    accentText: '',                      // computed in applyAccent based on theme
     tintDark: 'rgba(255,255,255,0.08)', tintLight: 'rgba(0,0,0,0.05)',
     ringDark: 'rgba(240,240,240,0.30)', ringLight: 'rgba(17,17,17,0.20)',
   },
@@ -105,9 +109,12 @@ function applyAccent(key: AccentKey, isDark: boolean) {
   if (key === 'neutral') {
     el.style.setProperty('--wb-accent',       isDark ? '#f0f0f0' : '#111111');
     el.style.setProperty('--wb-accent-hover', isDark ? '#cccccc' : '#333333');
+    // Neutral accent is near-white in dark / near-black in light → invert text
+    el.style.setProperty('--wb-accent-text',  isDark ? '#111111' : '#ffffff');
   } else {
     el.style.setProperty('--wb-accent',       def.accent);
     el.style.setProperty('--wb-accent-hover', def.hover);
+    el.style.setProperty('--wb-accent-text',  def.accentText);
   }
   el.style.setProperty('--wb-bg-active',   isDark ? def.tintDark  : def.tintLight);
   el.style.setProperty('--wb-accent-ring', isDark ? def.ringDark  : def.ringLight);

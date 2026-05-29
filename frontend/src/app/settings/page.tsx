@@ -421,7 +421,7 @@ export default function SettingsPage() {
                 <button key={t} onClick={() => setTheme(t)}
                   className="flex-1 py-1.5 text-xs font-medium capitalize rounded transition-colors"
                   style={theme === t
-                    ? { background: 'var(--wb-accent)', color: '#ffffff', fontWeight: 600 }
+                    ? { background: 'var(--wb-accent)', color: 'var(--wb-accent-text)', fontWeight: 600 }
                     : { background: 'transparent', color: 'var(--wb-text-2)' }}>
                   {t === 'system' ? 'Auto' : t.charAt(0).toUpperCase() + t.slice(1)}
                 </button>
@@ -680,7 +680,7 @@ export default function SettingsPage() {
                           className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0 ml-4"
                           style={isCurrent
                             ? { border: '1px solid var(--wb-border)', color: 'var(--wb-text-2)' }
-                            : { background: 'var(--wb-accent)', color: '#ffffff' }}>
+                            : { background: 'var(--wb-accent)', color: 'var(--wb-accent-text)' }}>
                           {isCurrent ? 'Current' : 'Upgrade'}
                         </button>
                       </div>
@@ -738,7 +738,7 @@ export default function SettingsPage() {
               </button>
               <button onClick={handleCredUnlock}
                 className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors text-white"
-                style={{ background: 'var(--wb-accent)', color: '#ffffff' }}>
+                style={{ background: 'var(--wb-accent)', color: 'var(--wb-accent-text)' }}>
                 Unlock
               </button>
             </div>

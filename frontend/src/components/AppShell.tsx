@@ -366,7 +366,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </button>
               <Link href="/settings" onClick={() => setShowTrialLimit(false)}
                 className="flex-1 py-2 rounded-lg text-sm font-medium text-center transition-colors"
-                style={{ background: 'var(--wb-accent)', color: '#ffffff' }}>
+                style={{ background: 'var(--wb-accent)', color: 'var(--wb-accent-text)' }}>
                 Upgrade Now
               </Link>
             </div>
@@ -415,7 +415,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </button>
               <button onClick={handleWsCredSubmit}
                 className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors"
-                style={{ background: 'var(--wb-accent)', color: '#ffffff' }}>
+                style={{ background: 'var(--wb-accent)', color: 'var(--wb-accent-text)' }}>
                 Unlock
               </button>
             </div>

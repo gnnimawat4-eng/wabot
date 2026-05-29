@@ -42,6 +42,7 @@
     --wb-accent:      #FF0436;
     --wb-accent-hover:#cc0329;
     --wb-accent-ring: rgba(255, 4, 54, 0.40);
+    --wb-accent-text: #ffffff;
   }
 
   /* ── Dark mode ────────────────────────────────────────────────────────────── */
@@ -82,6 +83,7 @@
     --wb-accent:      #FF0436;
     --wb-accent-hover:#cc0329;
     --wb-accent-ring: rgba(255, 4, 54, 0.40);
+    --wb-accent-text: #ffffff;
   }
 
   * {
@@ -104,7 +106,12 @@
 /* ── text-white = truly white in dark mode, always ── */
 .dark .text-white { color: #f0f0f0 !important; }
 
-/* ── Primary/coloured buttons: white text regardless of inheritance ── */
+/* ── Baseline: all <button> elements in dark mode show light text ── */
+/* No !important so inline styles (e.g. sidebar accent color) can still override */
+.dark button { color: #f0f0f0; }
+
+/* ── Coloured buttons: always use the accent-matching text colour ── */
+/* Uses --wb-accent-text (white for red/green, dark for neutral) */
 .dark .bg-green-600,
 .dark .bg-green-500,
 .dark .bg-green-700,
@@ -116,7 +123,20 @@
 .dark .bg-red-600,
 .dark .bg-orange-500,
 .dark .bg-yellow-500,
-.dark .bg-yellow-600 { color: #ffffff !important; }
+.dark .bg-yellow-600 { color: var(--wb-accent-text, #ffffff) !important; }
+
+/* Same rule without .dark prefix so it works in light mode too */
+button.bg-green-600, button.bg-green-500, button.bg-green-700,
+button.bg-blue-600,  button.bg-blue-700,
+button.bg-purple-600, button.bg-purple-700,
+button.bg-red-500,   button.bg-red-600,
+button.bg-orange-500, button.bg-yellow-500, button.bg-yellow-600 {
+  color: var(--wb-accent-text, #ffffff) !important;
+}
+
+/* Preserve explicit danger/warning text on un-filled buttons in dark mode */
+.dark button.text-red-400   { color: #f87171 !important; }
+.dark button.text-amber-400 { color: #fbbf24 !important; }
 
 /* ── Outline / secondary buttons in dark mode ── */
 .dark button[class*="border-white"],
@@ -193,11 +213,11 @@ html:not(.dark) .text-white\/30 { color: #9ca3af !important; }
 html:not(.dark) .text-white\/25 { color: #b0b8c1 !important; }
 html:not(.dark) .text-white\/20 { color: #c9d1d9 !important; }
 
-/* ── Restore white text on solid coloured buttons/badges (light mode) ── */
-/* These come after text-white override so win via source order + same specificity */
+/* ── Restore accent-correct text on solid coloured buttons/badges (light mode) ── */
+/* --wb-accent-text is #ffffff for red/green, #111111 for neutral */
 html:not(.dark) .bg-green-600,
 html:not(.dark) .bg-green-500,
-html:not(.dark) .bg-green-700 { color: #ffffff !important; }
+html:not(.dark) .bg-green-700 { color: var(--wb-accent-text, #ffffff) !important; }
 html:not(.dark) .bg-red-500,
 html:not(.dark) .bg-red-600,
 html:not(.dark) .bg-red-700   { color: #ffffff !important; }
