@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Send, MessageSquare } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useWorkspaceStore } from '@/lib/store';
 import { getContacts, getMessages } from '@/lib/api';
@@ -49,27 +48,27 @@ export default function InboxPage() {
 
   return (
     <AppShell>
-      <div className="flex h-full">
+      <div className="flex h-full bg-white dark:bg-[#0a0a0a]">
         {/* Contact list */}
-        <div className="w-72 border-r border-white/5 bg-[#0d1424] flex flex-col">
-          <div className="px-4 py-4 border-b border-white/5">
-            <p className="text-sm font-semibold text-white">Inbox</p>
-            <p className="text-xs text-white/40 mt-0.5">{contacts.length} conversations</p>
+        <div className="w-72 flex flex-col shrink-0 border-r border-gray-200 dark:border-[#1f1f1f] bg-white dark:bg-[#111111]">
+          <div className="px-4 py-4 border-b border-gray-200 dark:border-[#1f1f1f]">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">Inbox</p>
+            <p className="text-xs text-gray-500 dark:text-white/40 mt-0.5">{contacts.length} conversations</p>
           </div>
           <div className="flex-1 overflow-y-auto">
             {contactsLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 border-b border-white/5 animate-pulse">
-                  <div className="h-9 w-9 rounded-full bg-white/10 shrink-0" />
+                <div key={i} className="flex items-center gap-3 p-3 border-b border-gray-100 dark:border-[#1f1f1f] animate-pulse">
+                  <div className="h-9 w-9 rounded-full bg-gray-200 dark:bg-white/10 shrink-0" />
                   <div className="flex-1 space-y-1.5">
-                    <div className="h-3 bg-white/10 rounded w-24" />
-                    <div className="h-2.5 bg-white/5 rounded w-16" />
+                    <div className="h-3 bg-gray-200 dark:bg-white/10 rounded w-24" />
+                    <div className="h-2.5 bg-gray-100 dark:bg-white/5 rounded w-16" />
                   </div>
                 </div>
               ))
             ) : contacts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-40 text-white/25 text-xs text-center px-4">
-                <MessageSquare className="h-6 w-6 mb-2 text-white/10" />
+              <div className="flex flex-col items-center justify-center h-40 text-gray-400 dark:text-white/25 text-xs text-center px-4">
+                <MessageSquare className="h-6 w-6 mb-2 text-gray-300 dark:text-white/10" />
                 No conversations yet
               </div>
             ) : (
@@ -78,18 +77,18 @@ export default function InboxPage() {
                   key={c.id}
                   onClick={() => setSelectedContact(c)}
                   className={cn(
-                    'w-full flex items-center gap-3 p-3 border-b border-white/5 text-left transition-colors',
+                    'w-full flex items-center gap-3 p-3 border-b border-gray-100 dark:border-[#1f1f1f] text-left transition-colors',
                     selectedContact?.id === c.id
-                      ? 'bg-green-500/10'
-                      : 'hover:bg-white/5'
+                      ? 'bg-green-50 dark:bg-green-500/10'
+                      : 'hover:bg-gray-50 dark:hover:bg-[#1a1a1a]'
                   )}
                 >
-                  <div className="h-9 w-9 rounded-full bg-green-500/20 text-green-400 text-sm font-semibold flex items-center justify-center shrink-0">
+                  <div className="h-9 w-9 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 text-sm font-semibold flex items-center justify-center shrink-0">
                     {initials(c.name)}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{c.name || c.phone}</p>
-                    <p className="text-xs text-white/40 truncate">{c.phone}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{c.name || c.phone}</p>
+                    <p className="text-xs text-gray-500 dark:text-white/40 truncate">{c.phone}</p>
                   </div>
                 </button>
               ))
@@ -98,26 +97,26 @@ export default function InboxPage() {
         </div>
 
         {/* Chat area */}
-        <div className="flex-1 flex flex-col bg-[#0a0f1e]">
+        <div className="flex-1 flex flex-col bg-white dark:bg-[#0a0a0a]">
           {selectedContact ? (
             <>
               {/* Chat header */}
-              <div className="border-b border-white/5 px-5 py-3 flex items-center gap-3 bg-[#0d1424]">
-                <div className="h-8 w-8 rounded-full bg-green-500/20 text-green-400 text-xs font-semibold flex items-center justify-center">
+              <div className="border-b border-gray-200 dark:border-[#1f1f1f] px-5 py-3 flex items-center gap-3 bg-white dark:bg-[#111111]">
+                <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 text-xs font-semibold flex items-center justify-center">
                   {initials(selectedContact.name)}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-white">{selectedContact.name || selectedContact.phone}</p>
-                  <p className="text-xs text-white/40">{selectedContact.phone}</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{selectedContact.name || selectedContact.phone}</p>
+                  <p className="text-xs text-gray-500 dark:text-white/40">{selectedContact.phone}</p>
                 </div>
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50 dark:bg-[#0a0a0a]">
                 {messagesLoading ? (
-                  <div className="flex items-center justify-center h-full text-white/25 text-sm">Loading…</div>
+                  <div className="flex items-center justify-center h-full text-gray-400 dark:text-white/25 text-sm">Loading…</div>
                 ) : messages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-white/25 text-sm">No messages yet</div>
+                  <div className="flex items-center justify-center h-full text-gray-400 dark:text-white/25 text-sm">No messages yet</div>
                 ) : (
                   messages.map((msg) => (
                     <div key={msg.id} className={cn('flex', msg.direction === 'outbound' ? 'justify-end' : 'justify-start')}>
@@ -125,10 +124,10 @@ export default function InboxPage() {
                         'max-w-xs lg:max-w-md px-3.5 py-2.5 rounded-2xl text-sm',
                         msg.direction === 'outbound'
                           ? 'bg-green-600 text-white rounded-br-sm'
-                          : 'bg-white/8 text-white/90 rounded-bl-sm'
+                          : 'bg-white dark:bg-white/8 text-gray-900 dark:text-white/90 rounded-bl-sm border border-gray-200 dark:border-transparent shadow-sm dark:shadow-none'
                       )}>
                         <p className="leading-relaxed">{msg.body}</p>
-                        <p className={cn('text-xs mt-1', msg.direction === 'outbound' ? 'text-green-200/70' : 'text-white/30')}>
+                        <p className={cn('text-xs mt-1', msg.direction === 'outbound' ? 'text-green-200/70' : 'text-gray-400 dark:text-white/30')}>
                           {timeAgo(msg.created_at)}
                         </p>
                       </div>
@@ -139,27 +138,23 @@ export default function InboxPage() {
               </div>
 
               {/* Input */}
-              <div className="border-t border-white/5 p-3 flex gap-2 bg-[#0d1424]">
-                <Input
-                  className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-green-500/40"
+              <div className="border-t border-gray-200 dark:border-[#1f1f1f] p-3 flex gap-2 bg-white dark:bg-[#111111]">
+                <input
+                  className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-white/30 focus:outline-none focus:border-green-500/50"
                   placeholder="Type a message…"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && text.trim() && send.mutate()}
                 />
-                <Button
-                  size="icon"
-                  className="bg-green-600 hover:bg-green-700 shrink-0"
-                  onClick={() => send.mutate()}
-                  disabled={!text.trim() || send.isPending}
-                >
+                <Button size="icon" className="bg-green-600 hover:bg-green-700 shrink-0"
+                  onClick={() => send.mutate()} disabled={!text.trim() || send.isPending}>
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-white/20 gap-3">
-              <MessageSquare className="h-10 w-10 text-white/10" />
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-300 dark:text-white/20 gap-3">
+              <MessageSquare className="h-10 w-10 text-gray-200 dark:text-white/10" />
               <p className="text-sm">Select a conversation to start chatting</p>
             </div>
           )}

@@ -17,7 +17,26 @@ import { getContacts, createContact, updateContact, deleteContact } from '@/lib/
 import { stageColor, timeAgo } from '@/lib/utils';
 import { toast } from 'sonner';
 
-const STAGES = ['new', 'contacted', 'qualified', 'proposal', 'closed_won', 'closed_lost'];
+// Real estate contact stages
+const REAL_ESTATE_STAGE_OPTIONS = [
+  { value: 'new_lead', label: 'New Lead' },
+  { value: 'site_visit_scheduled', label: 'Site Visit Scheduled' },
+  { value: 'interested', label: 'Interested' },
+  { value: 'negotiation', label: 'Negotiation' },
+  { value: 'converted', label: 'Converted' },
+  { value: 'not_interested', label: 'Not Interested' },
+];
+
+function getStageFilters(businessType?: string | null) {
+  if (businessType === 'real_estate') {
+    return [{ value: '', label: 'All' }, ...REAL_ESTATE_STAGE_OPTIONS];
+  }
+  return [
+    { value: '', label: 'All' },
+    { value: 'active', label: 'Active' },
+    { value: 'new', label: 'New' },
+  ];
+}
 
 type Contact = {
   id: string; name: string; phone: string; stage: string;
@@ -25,14 +44,15 @@ type Contact = {
 };
 
 function ContactDialog({
-  open, onClose, contact, workspaceId,
-}: { open: boolean; onClose: () => void; contact?: Contact | null; workspaceId: string }) {
+  open, onClose, contact, workspaceId, businessType,
+}: { open: boolean; onClose: () => void; contact?: Contact | null; workspaceId: string; businessType?: string | null }) {
   const qc = useQueryClient();
   const isEdit = !!contact;
+  const isRealEstate = businessType === 'real_estate';
   const [form, setForm] = useState<{ name: string; phone: string; stage: string; notes: string }>({
     name: contact?.name ?? '',
     phone: contact?.phone ?? '',
-    stage: contact?.stage ?? 'new',
+    stage: contact?.stage ?? (isRealEstate ? 'new_lead' : 'new'),
     notes: contact?.notes ?? '',
   });
 
@@ -67,18 +87,20 @@ function ContactDialog({
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
-          <Select value={form.stage} onValueChange={(v) => v && setForm({ ...form, stage: v })}>
-            <SelectTrigger className="bg-white/5 border-white/10 text-white">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-[#0d1424] border-white/10 text-white">
-              {STAGES.map((s) => (
-                <SelectItem key={s} value={s} className="hover:bg-white/5 focus:bg-white/5">
-                  {s.replace('_', ' ')}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {isRealEstate && (
+            <Select value={form.stage} onValueChange={(v) => v && setForm({ ...form, stage: v })}>
+              <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-[#0d1424] border-white/10 text-white">
+                {REAL_ESTATE_STAGE_OPTIONS.map((s) => (
+                  <SelectItem key={s.value} value={s.value} className="hover:bg-white/5 focus:bg-white/5">
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Input
             className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
             placeholder="Notes (optional)"
@@ -106,9 +128,19 @@ export default function ContactsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
 
+  const isRealEstate = activeWorkspace?.business_type === 'real_estate';
+  const stageFilters = getStageFilters(activeWorkspace?.business_type);
+
+  // 'active' and 'new' are client-side date filters, not DB stage values
+  const isSpecialFilter = stageFilter === 'active' || stageFilter === 'new';
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
   const { data, isLoading } = useQuery({
     queryKey: ['contacts', activeWorkspace?.id, stageFilter, search],
-    queryFn: () => getContacts(activeWorkspace!.id, { stage: stageFilter || undefined, search: search || undefined }),
+    queryFn: () => getContacts(activeWorkspace!.id, {
+      stage: (!isSpecialFilter && stageFilter) ? stageFilter : undefined,
+      search: search || undefined,
+    }),
     enabled: !!activeWorkspace,
   });
 
@@ -120,7 +152,12 @@ export default function ContactsPage() {
     },
   });
 
-  const contacts: Contact[] = data?.data ?? [];
+  const rawContacts: Contact[] = data?.data ?? [];
+  const contacts: Contact[] = rawContacts.filter((c) => {
+    if (stageFilter === 'active') return !!c.last_message_at && new Date(c.last_message_at).getTime() > sevenDaysAgo;
+    if (stageFilter === 'new') return new Date(c.created_at).getTime() > sevenDaysAgo;
+    return true;
+  });
 
   const openNew = () => {
     if (!activeWorkspace) {
@@ -175,17 +212,17 @@ export default function ContactsPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          {['', ...STAGES].map((s) => (
+          {stageFilters.map((f) => (
             <button
-              key={s}
-              onClick={() => setStageFilter(s)}
+              key={f.value}
+              onClick={() => setStageFilter(f.value)}
               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                stageFilter === s
+                stageFilter === f.value
                   ? 'bg-green-600 text-white border-green-600'
                   : 'border-white/10 text-white/50 hover:border-green-500/50 hover:text-white/80'
               }`}
             >
-              {s ? s.replace('_', ' ') : 'All'}
+              {f.label}
             </button>
           ))}
         </div>
@@ -196,7 +233,7 @@ export default function ContactsPage() {
               <TableRow className="border-white/8 hover:bg-transparent">
                 <TableHead className="text-white/40">Name</TableHead>
                 <TableHead className="text-white/40">Phone</TableHead>
-                <TableHead className="text-white/40">Stage</TableHead>
+                {isRealEstate && <TableHead className="text-white/40">Stage</TableHead>}
                 <TableHead className="text-white/40">Last message</TableHead>
                 <TableHead className="text-white/40">Added</TableHead>
                 <TableHead className="w-20" />
@@ -204,16 +241,18 @@ export default function ContactsPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-white/30">Loading…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={isRealEstate ? 6 : 5} className="text-center py-8 text-white/30">Loading…</TableCell></TableRow>
               ) : contacts.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-white/30">No contacts yet</TableCell></TableRow>
+                <TableRow><TableCell colSpan={isRealEstate ? 6 : 5} className="text-center py-8 text-white/30">No contacts yet</TableCell></TableRow>
               ) : contacts.map((c) => (
                 <TableRow key={c.id} className="border-white/5 hover:bg-white/3">
                   <TableCell className="font-medium text-white">{c.name || '—'}</TableCell>
                   <TableCell className="text-sm text-white/50">{c.phone}</TableCell>
-                  <TableCell>
-                    <Badge className={stageColor(c.stage)}>{c.stage.replace('_', ' ')}</Badge>
-                  </TableCell>
+                  {isRealEstate && (
+                    <TableCell>
+                      <Badge className={stageColor(c.stage)}>{c.stage.replace(/_/g, ' ')}</Badge>
+                    </TableCell>
+                  )}
                   <TableCell className="text-sm text-white/50">
                     {c.last_message_at ? timeAgo(c.last_message_at) : '—'}
                   </TableCell>
@@ -235,12 +274,12 @@ export default function ContactsPage() {
         </Card>
       </div>
 
-      {/* Always rendered so dialog opens even before workspace confirmed */}
       <ContactDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         contact={editing}
         workspaceId={activeWorkspace?.id ?? ''}
+        businessType={activeWorkspace?.business_type}
       />
     </AppShell>
   );
