@@ -70,7 +70,7 @@ function ContactDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="bg-[#242424] border-white/10 text-white">
+      <DialogContent className="bg-[#252525] border-white/10 text-white">
         <DialogHeader>
           <DialogTitle className="text-white">{isEdit ? 'Edit Contact' : 'New Contact'}</DialogTitle>
         </DialogHeader>
@@ -92,7 +92,7 @@ function ContactDialog({
               <SelectTrigger className="bg-white/5 border-white/10 text-white">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-[#242424] border-white/10 text-white">
+              <SelectContent className="bg-[#252525] border-white/10 text-white">
                 {REAL_ESTATE_STAGE_OPTIONS.map((s) => (
                   <SelectItem key={s.value} value={s.value} className="hover:bg-white/5 focus:bg-white/5">
                     {s.label}

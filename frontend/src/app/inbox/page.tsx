@@ -48,9 +48,9 @@ export default function InboxPage() {
 
   return (
     <AppShell>
-      <div className="flex h-full bg-white dark:bg-[#1a1a1a]">
+      <div className="flex h-full bg-white dark:bg-[#1e1e1e]">
         {/* Contact list */}
-        <div className="w-72 flex flex-col shrink-0 border-r border-gray-200 dark:border-[#2e2e2e] bg-white dark:bg-[#212121]">
+        <div className="w-72 flex flex-col shrink-0 border-r border-gray-200 dark:border-[#2e2e2e] bg-white dark:bg-[#252525]">
           <div className="px-4 py-4 border-b border-gray-200 dark:border-[#2e2e2e]">
             <p className="text-sm font-semibold text-gray-900 dark:text-white">Inbox</p>
             <p className="text-xs text-gray-500 dark:text-white/40 mt-0.5">{contacts.length} conversations</p>
@@ -97,11 +97,11 @@ export default function InboxPage() {
         </div>
 
         {/* Chat area */}
-        <div className="flex-1 flex flex-col bg-white dark:bg-[#1a1a1a]">
+        <div className="flex-1 flex flex-col bg-white dark:bg-[#1e1e1e]">
           {selectedContact ? (
             <>
               {/* Chat header */}
-              <div className="border-b border-gray-200 dark:border-[#2e2e2e] px-5 py-3 flex items-center gap-3 bg-white dark:bg-[#212121]">
+              <div className="border-b border-gray-200 dark:border-[#2e2e2e] px-5 py-3 flex items-center gap-3 bg-white dark:bg-[#252525]">
                 <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 text-xs font-semibold flex items-center justify-center">
                   {initials(selectedContact.name)}
                 </div>
@@ -112,7 +112,7 @@ export default function InboxPage() {
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50 dark:bg-[#1a1a1a]">
+              <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50 dark:bg-[#1e1e1e]">
                 {messagesLoading ? (
                   <div className="flex items-center justify-center h-full text-gray-400 dark:text-white/25 text-sm">Loading…</div>
                 ) : messages.length === 0 ? (
@@ -138,7 +138,7 @@ export default function InboxPage() {
               </div>
 
               {/* Input */}
-              <div className="border-t border-gray-200 dark:border-[#2e2e2e] p-3 flex gap-2 bg-white dark:bg-[#212121]">
+              <div className="border-t border-gray-200 dark:border-[#2e2e2e] p-3 flex gap-2 bg-white dark:bg-[#252525]">
                 <input
                   className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-white/30 focus:outline-none focus:border-green-500/50"
                   placeholder="Type a message…"

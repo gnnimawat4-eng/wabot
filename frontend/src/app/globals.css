@@ -64,14 +64,14 @@
     --ring: 349 100% 60%;
 
     /* WaBot semantic tokens — dark */
-    --wb-bg:          #1a1a1a;
-    --wb-bg-sidebar:  #212121;
-    --wb-bg-card:     #262626;
+    --wb-bg:          #1e1e1e;
+    --wb-bg-sidebar:  #141414;
+    --wb-bg-card:     #252525;
     --wb-bg-hover:    #2a2a2a;
     --wb-bg-active:   rgba(255, 4, 54, 0.14);
-    --wb-text:        #f5f5f5;
-    --wb-text-2:      #a0a0a0;
-    --wb-text-3:      #686868;
+    --wb-text:        #f0f0f0;
+    --wb-text-2:      #888888;
+    --wb-text-3:      #555555;
     --wb-border:      #2e2e2e;
     --wb-border-2:    #2a2a2a;
     --wb-accent:      #FF0436;
@@ -103,13 +103,17 @@ html:not(.dark) .bg-\[#111111\],
 html:not(.dark) .bg-\[#161616\],
 html:not(.dark) .bg-\[#1a1a2e\],
 html:not(.dark) .bg-\[#1a1a1a\],
+html:not(.dark) .bg-\[#141414\],
+html:not(.dark) .bg-\[#1e1e1e\],
 html:not(.dark) .bg-\[#212121\],
 html:not(.dark) .bg-\[#242424\],
+html:not(.dark) .bg-\[#252525\],
 html:not(.dark) .bg-\[#262626\],
 html:not(.dark) .bg-\[#2a2a2a\] { background-color: #ffffff !important; }
 
 html:not(.dark) .bg-\[#060b17\]\/95,
-html:not(.dark) .bg-\[#1a1a1a\]\/95 { background-color: rgba(248,248,248,0.97) !important; }
+html:not(.dark) .bg-\[#1a1a1a\]\/95,
+html:not(.dark) .bg-\[#1e1e1e\]\/95 { background-color: rgba(248,248,248,0.97) !important; }
 html:not(.dark) .bg-\[#060b17\]     { background-color: #f8f8f8 !important; }
 
 /* ── White/X opacity → light grays ── */

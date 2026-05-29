@@ -61,7 +61,7 @@ function StepEditor({ step, index, onUpdate, onRemove }: { step: Step; index: nu
       </div>
       <Select value={step.type} onValueChange={(v) => v && onUpdate({ type: v, config: DEFAULT_CONFIG[v] ?? {} })}>
         <SelectTrigger className="bg-white/5 border-white/10 text-white"><SelectValue /></SelectTrigger>
-        <SelectContent className="bg-[#242424] border-white/10 text-white">
+        <SelectContent className="bg-[#252525] border-white/10 text-white">
           {STEP_TYPES.map((t) => <SelectItem key={t.value} value={t.value} className="hover:bg-white/5 focus:bg-white/5">{t.label}</SelectItem>)}
         </SelectContent>
       </Select>
@@ -98,7 +98,7 @@ function FlowDialog({ open, onClose, workspaceId }: { open: boolean; onClose: ()
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto bg-[#242424] border-white/10 text-white">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto bg-[#252525] border-white/10 text-white">
         <DialogHeader><DialogTitle className="text-white">New Flow</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <Input className="bg-white/5 border-white/10 text-white placeholder:text-white/30" placeholder="Flow name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -106,7 +106,7 @@ function FlowDialog({ open, onClose, workspaceId }: { open: boolean; onClose: ()
             <p className="text-sm font-medium text-white/70">Trigger</p>
             <Select value={triggerType} onValueChange={(v) => v && setTriggerType(v)}>
               <SelectTrigger className="bg-white/5 border-white/10 text-white"><SelectValue /></SelectTrigger>
-              <SelectContent className="bg-[#242424] border-white/10 text-white">
+              <SelectContent className="bg-[#252525] border-white/10 text-white">
                 {TRIGGER_TYPES.map((t) => <SelectItem key={t} value={t} className="hover:bg-white/5 focus:bg-white/5">{t.replace('_', ' ')}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -201,7 +201,7 @@ function AIGenerateModal({ open, onClose, workspaceId }: { open: boolean; onClos
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto bg-[#242424] border-white/10 text-white">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto bg-[#252525] border-white/10 text-white">
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-yellow-400" />

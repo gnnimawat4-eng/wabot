@@ -260,7 +260,7 @@ export default function CrudPage({
         {/* Add modal */}
         {showAdd && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <div className="bg-[#262626] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="bg-[#252525] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-lg font-bold text-white">{addLabel}</h2>
                 <button onClick={() => setShowAdd(false)} className="text-white/40 hover:text-white/70"><X className="h-5 w-5" /></button>
