@@ -106,47 +106,37 @@
 /* ── text-white = truly white in dark mode, always ── */
 .dark .text-white { color: #f0f0f0 !important; }
 
-/* ── Baseline: all <button> elements in dark mode show light text ── */
-/* No !important so inline styles (e.g. sidebar accent color) can still override */
-.dark button { color: #f0f0f0; }
+/* ── ALL buttons: force white text in both modes ── */
+button { color: #ffffff !important; }
+.dark button { color: #ffffff !important; }
 
-/* ── Coloured buttons: always use the accent-matching text colour ── */
-/* Uses --wb-accent-text (white for red/green, dark for neutral) */
-.dark .bg-green-600,
-.dark .bg-green-500,
-.dark .bg-green-700,
-.dark .bg-blue-600,
-.dark .bg-blue-700,
-.dark .bg-purple-600,
-.dark .bg-purple-700,
-.dark .bg-red-500,
-.dark .bg-red-600,
-.dark .bg-orange-500,
-.dark .bg-yellow-500,
-.dark .bg-yellow-600 { color: var(--wb-accent-text, #ffffff) !important; }
+/* Light mode: restore dark text on non-coloured buttons */
+html:not(.dark) button { color: #111111 !important; }
 
-/* Same rule without .dark prefix so it works in light mode too */
-button.bg-green-600, button.bg-green-500, button.bg-green-700,
-button.bg-blue-600,  button.bg-blue-700,
-button.bg-purple-600, button.bg-purple-700,
-button.bg-red-500,   button.bg-red-600,
-button.bg-orange-500, button.bg-yellow-500, button.bg-yellow-600 {
+/* Light mode: coloured/primary buttons keep white text */
+/* (specificity (0,2,2) beats the html:not(.dark) button rule at (0,1,2)) */
+html:not(.dark) button.bg-green-600, html:not(.dark) button.bg-green-500,
+html:not(.dark) button.bg-green-700,
+html:not(.dark) button.bg-blue-600,  html:not(.dark) button.bg-blue-700,
+html:not(.dark) button.bg-purple-600, html:not(.dark) button.bg-purple-700,
+html:not(.dark) button.bg-red-500,   html:not(.dark) button.bg-red-600,
+html:not(.dark) button.bg-orange-500,
+html:not(.dark) button.bg-yellow-500, html:not(.dark) button.bg-yellow-600 {
   color: var(--wb-accent-text, #ffffff) !important;
 }
 
-/* Preserve explicit danger/warning text on un-filled buttons in dark mode */
+/* Dark mode: coloured buttons text colour (handles neutral accent) */
+/* Specificity (0,2,0) beats .dark button (0,1,1) so neutral stays readable */
+.dark .bg-green-600, .dark .bg-green-500, .dark .bg-green-700,
+.dark .bg-blue-600,  .dark .bg-blue-700,
+.dark .bg-purple-600, .dark .bg-purple-700,
+.dark .bg-red-500,   .dark .bg-red-600,
+.dark .bg-orange-500, .dark .bg-yellow-500,
+.dark .bg-yellow-600 { color: var(--wb-accent-text, #ffffff) !important; }
+
+/* Preserve danger/warning text on unfilled buttons in dark mode */
 .dark button.text-red-400   { color: #f87171 !important; }
 .dark button.text-amber-400 { color: #fbbf24 !important; }
-
-/* ── Outline / secondary buttons in dark mode ── */
-.dark button[class*="border-white"],
-.dark button[class*="border-white\/10"] {
-  border-color: #2e2e2e !important;
-  color: #f0f0f0 !important;
-}
-.dark button[class*="border-white"]:hover {
-  background-color: #2a2a2a !important;
-}
 
 /* ── Input / textarea / select in dark mode ── */
 .dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]):not([type="button"]),

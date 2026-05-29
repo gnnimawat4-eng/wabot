@@ -146,7 +146,7 @@ export default function InboxPage() {
                   onChange={(e) => setText(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && text.trim() && send.mutate()}
                 />
-                <Button size="icon" className="bg-green-600 hover:bg-green-700 shrink-0"
+                <Button size="icon" className="bg-green-600 hover:bg-green-700 text-white shrink-0"
                   onClick={() => send.mutate()} disabled={!text.trim() || send.isPending}>
                   <Send className="h-4 w-4" />
                 </Button>

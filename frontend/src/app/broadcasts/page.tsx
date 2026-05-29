@@ -49,7 +49,7 @@ function NewBroadcastDialog({ open, onClose, workspaceId }: { open: boolean; onC
           <Input placeholder="WhatsApp template name" value={form.template_name} onChange={(e) => setForm({ ...form, template_name: e.target.value })} />
           <Input placeholder="Language code (e.g. en, hi)" value={form.template_language} onChange={(e) => setForm({ ...form, template_language: e.target.value })} />
           <p className="text-xs text-gray-400">Audience: all opted-in contacts in this workspace.</p>
-          <Button className="w-full bg-green-600 hover:bg-green-700" onClick={() => create.mutate()} disabled={create.isPending || !form.name || !form.template_name}>
+          <Button className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={() => create.mutate()} disabled={create.isPending || !form.name || !form.template_name}>
             {create.isPending ? 'Queuing…' : 'Send Broadcast'}
           </Button>
         </div>
@@ -74,7 +74,7 @@ export default function BroadcastsPage() {
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Broadcasts</h1>
-          <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => setDialogOpen(true)}>
+          <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-1" />New Broadcast
           </Button>
         </div>
