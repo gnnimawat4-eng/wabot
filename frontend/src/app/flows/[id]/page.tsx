@@ -41,7 +41,7 @@ function MessageBubble({ index, message, onChange, onDelete, onMoveUp, onMoveDow
       </div>
       <div className="flex-1">
         <p className="text-xs mb-1.5" style={{ color: 'var(--wb-text-3)' }}>Message {index + 1}</p>
-        <div className="rounded-2xl rounded-tl-sm" style={{ background: 'var(--wb-bg-active)', border: '1px solid rgba(22,163,74,0.2)' }}>
+        <div className="rounded-2xl rounded-tl-sm" style={{ background: 'var(--wb-bg-active)', border: '1px solid rgba(255,4,54,0.2)' }}>
           <textarea
             value={message}
             onChange={(e) => { onChange(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'; }}
@@ -227,7 +227,7 @@ export default function FlowEditorPage() {
             <button onClick={() => toggleActive.mutate()}
               className="text-xs font-medium px-3 py-1.5 rounded-full transition-colors"
               style={flow?.is_active
-                ? { background: 'rgba(22,163,74,0.12)', color: '#16a34a' }
+                ? { background: 'rgba(255,4,54,0.12)', color: '#FF0436' }
                 : { background: 'var(--wb-bg-hover)', color: 'var(--wb-text-3)' }}>
               {flow?.is_active ? '● Active' : '○ Paused'}
             </button>

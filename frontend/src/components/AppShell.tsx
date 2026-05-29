@@ -528,7 +528,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="flex-1 flex flex-col overflow-hidden" style={s.main}>
           {trialDaysLeft !== null && trialDaysLeft > 0 && (
             <div className="shrink-0 px-4 py-2 flex items-center justify-between text-sm"
-              style={{ background: 'rgba(22,163,74,0.08)', borderBottom: '1px solid rgba(22,163,74,0.15)' }}>
+              style={{ background: 'rgba(255,4,54,0.08)', borderBottom: '1px solid rgba(255,4,54,0.15)' }}>
               <span style={{ color: 'var(--wb-text-2)' }}>🎉 Free trial: <strong style={{ color: 'var(--wb-text)' }}>{trialDaysLeft} day{trialDaysLeft !== 1 ? 's' : ''} remaining</strong></span>
               <Link href="/pricing" className="text-xs font-medium px-3 py-1 rounded-full" style={{ background: 'var(--wb-accent)', color: '#fff' }}>Upgrade</Link>
             </div>

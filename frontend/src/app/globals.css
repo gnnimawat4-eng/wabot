@@ -11,8 +11,8 @@
     --card-foreground: 222 47% 8%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 8%;
-    --primary: 142 71% 35%;
-    --primary-foreground: 144 100% 98%;
+    --primary: 349 100% 51%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 210 40% 96%;
     --secondary-foreground: 222 47% 8%;
     --muted: 210 40% 96%;
@@ -23,7 +23,7 @@
     --destructive-foreground: 0 0% 98%;
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 142 71% 35%;
+    --ring: 349 100% 51%;
     --radius: 0.5rem;
 
     /* WaBot semantic tokens — light */
@@ -31,14 +31,14 @@
     --wb-bg-sidebar:  #f8f8f8;
     --wb-bg-card:     #ffffff;
     --wb-bg-hover:    #f3f4f6;
-    --wb-bg-active:   #f0fdf4;
+    --wb-bg-active:   rgba(255, 4, 54, 0.06);
     --wb-text:        #111111;
     --wb-text-2:      #4b5563;
     --wb-text-3:      #9ca3af;
     --wb-border:      #e5e5e5;
     --wb-border-2:    #f0f0f0;
-    --wb-accent:      #16a34a;
-    --wb-accent-hover:#15803d;
+    --wb-accent:      #FF0436;
+    --wb-accent-hover:#cc0329;
   }
 
   /* ── Dark mode ────────────────────────────────────────────────────────────── */
@@ -49,8 +49,8 @@
     --card-foreground: 213 31% 91%;
     --popover: 0 0% 6%;
     --popover-foreground: 213 31% 91%;
-    --primary: 142 71% 45%;
-    --primary-foreground: 144 100% 5%;
+    --primary: 349 100% 60%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 11%;
     --secondary-foreground: 213 31% 91%;
     --muted: 0 0% 11%;
@@ -61,21 +61,21 @@
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 12%;
     --input: 0 0% 12%;
-    --ring: 142 71% 45%;
+    --ring: 349 100% 60%;
 
     /* WaBot semantic tokens — dark */
     --wb-bg:          #0a0a0a;
     --wb-bg-sidebar:  #111111;
     --wb-bg-card:     #161616;
     --wb-bg-hover:    rgba(255, 255, 255, 0.04);
-    --wb-bg-active:   rgba(22, 163, 74, 0.1);
+    --wb-bg-active:   rgba(255, 4, 54, 0.12);
     --wb-text:        #ffffff;
     --wb-text-2:      rgba(255, 255, 255, 0.55);
     --wb-text-3:      rgba(255, 255, 255, 0.3);
     --wb-border:      #1f1f1f;
     --wb-border-2:    #161616;
-    --wb-accent:      #16a34a;
-    --wb-accent-hover:#15803d;
+    --wb-accent:      #FF0436;
+    --wb-accent-hover:#cc0329;
   }
 
   * {
@@ -151,8 +151,8 @@ html:not(.dark) .hover\:bg-white\/8:hover  { background-color: #f0f0f0 !importan
 html:not(.dark) .hover\:bg-white\/10:hover { background-color: #ebebeb !important; }
 html:not(.dark) .hover\:bg-white\/12:hover { background-color: #e5e5e5 !important; }
 
-/* ── Accent text: 400 variants too light on white → 600 ── */
-html:not(.dark) .text-green-400  { color: #16a34a !important; }
+/* ── Accent text: 400 variants too light on white → use accent color ── */
+html:not(.dark) .text-green-400  { color: #FF0436 !important; }
 html:not(.dark) .text-red-400    { color: #dc2626 !important; }
 html:not(.dark) .text-blue-400   { color: #2563eb !important; }
 html:not(.dark) .text-yellow-400 { color: #d97706 !important; }
@@ -163,11 +163,14 @@ html:not(.dark) .text-slate-400  { color: #64748b !important; }
 html:not(.dark) .text-amber-400  { color: #d97706 !important; }
 
 /* ── Opacity-tinted coloured backgrounds → light pastel versions ── */
-html:not(.dark) .bg-green-500\/8  { background-color: #f0fdf4 !important; }
+html:not(.dark) .bg-green-500\/5,
+html:not(.dark) .bg-green-500\/8  { background-color: rgba(255,4,54,0.04) !important; }
 html:not(.dark) .bg-green-500\/10,
-html:not(.dark) .bg-green-500\/15 { background-color: #dcfce7 !important; }
-html:not(.dark) .bg-green-500\/20 { background-color: #bbf7d0 !important; }
-html:not(.dark) .bg-green-600\/20 { background-color: #dcfce7 !important; }
+html:not(.dark) .bg-green-500\/15 { background-color: rgba(255,4,54,0.08) !important; }
+html:not(.dark) .bg-green-500\/20 { background-color: rgba(255,4,54,0.12) !important; }
+html:not(.dark) .bg-green-600\/20 { background-color: rgba(255,4,54,0.1) !important; }
+html:not(.dark) .bg-green-50      { background-color: rgba(255,4,54,0.04) !important; }
+html:not(.dark) .bg-green-100     { background-color: rgba(255,4,54,0.08) !important; }
 html:not(.dark) .bg-red-500\/5,
 html:not(.dark) .bg-red-500\/10,
 html:not(.dark) .bg-red-500\/15   { background-color: #fee2e2 !important; }
@@ -189,12 +192,12 @@ html:not(.dark) .bg-pink-500\/20   { background-color: #fce7f3 !important; }
 
 /* Gradient overlays */
 html:not(.dark) .from-blue-600\/20 { --tw-gradient-from: rgba(37,99,235,0.08); }
-html:not(.dark) .to-green-600\/20  { --tw-gradient-to: rgba(22,163,74,0.08); }
+html:not(.dark) .to-green-600\/20  { --tw-gradient-to: rgba(255,4,54,0.08); }
 
 /* ── Opacity-tinted border overrides ── */
 html:not(.dark) .border-green-500\/20,
-html:not(.dark) .border-green-500\/25 { border-color: #bbf7d0 !important; }
-html:not(.dark) .border-green-500\/30 { border-color: #86efac !important; }
+html:not(.dark) .border-green-500\/25 { border-color: rgba(255,4,54,0.25) !important; }
+html:not(.dark) .border-green-500\/30 { border-color: rgba(255,4,54,0.35) !important; }
 html:not(.dark) .border-red-500\/20,
 html:not(.dark) .border-red-500\/25   { border-color: #fecaca !important; }
 html:not(.dark) .border-blue-500\/15,
@@ -207,9 +210,63 @@ html:not(.dark) .border-dashed        { border-style: dashed; }
 /* ── Placeholder text ── */
 html:not(.dark) ::placeholder { color: #9ca3af; }
 
-/* ── Inline focus rings ── */
-html:not(.dark) .focus\:border-green-500\/50:focus  { border-color: #16a34a !important; }
-html:not(.dark) .focus\:border-green-500\/60:focus  { border-color: #16a34a !important; }
+/* ── Focus rings ── */
+html:not(.dark) .focus\:border-green-500\/50:focus  { border-color: rgba(255,4,54,0.5) !important; }
+html:not(.dark) .focus\:border-green-500\/60:focus  { border-color: rgba(255,4,54,0.6) !important; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ACCENT COLOR — global green → #FF0436 overrides (both modes)
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* Solid backgrounds */
+.bg-green-600  { background-color: #FF0436 !important; }
+.bg-green-500  { background-color: #FF0436 !important; }
+.bg-green-700  { background-color: #cc0329 !important; }
+.hover\:bg-green-600:hover { background-color: #FF0436 !important; }
+.hover\:bg-green-700:hover { background-color: #cc0329 !important; }
+
+/* Text */
+.text-green-600 { color: #FF0436 !important; }
+.text-green-500 { color: #FF0436 !important; }
+.text-green-700 { color: #cc0329 !important; }
+.text-green-400 { color: #ff4d6b !important; }
+.text-green-300 { color: #ff6b85 !important; }
+.hover\:text-green-300:hover { color: #ff6b85 !important; }
+.dark .text-green-400 { color: #ff4d6b !important; }
+
+/* Borders */
+.border-green-600 { border-color: #FF0436 !important; }
+.border-green-500 { border-color: #FF0436 !important; }
+
+/* Opacity-tinted backgrounds (dark mode) */
+.bg-green-50       { background-color: rgba(255,4,54,0.05) !important; }
+.bg-green-100      { background-color: rgba(255,4,54,0.08) !important; }
+.bg-green-500\/5   { background-color: rgba(255,4,54,0.05) !important; }
+.bg-green-500\/8   { background-color: rgba(255,4,54,0.08) !important; }
+.bg-green-500\/10  { background-color: rgba(255,4,54,0.10) !important; }
+.bg-green-500\/15  { background-color: rgba(255,4,54,0.15) !important; }
+.bg-green-500\/20  { background-color: rgba(255,4,54,0.20) !important; }
+.bg-green-500\/25  { background-color: rgba(255,4,54,0.25) !important; }
+.bg-green-600\/20  { background-color: rgba(255,4,54,0.15) !important; }
+.hover\:bg-green-500\/20:hover  { background-color: rgba(255,4,54,0.20) !important; }
+.hover\:bg-green-500\/25:hover  { background-color: rgba(255,4,54,0.25) !important; }
+.dark\:bg-green-500\/10:is(.dark *) { background-color: rgba(255,4,54,0.10) !important; }
+.dark\:bg-green-500\/20:is(.dark *) { background-color: rgba(255,4,54,0.20) !important; }
+.dark\:text-green-400:is(.dark *)   { color: #ff4d6b !important; }
+
+/* Opacity-tinted borders */
+.border-green-500\/20 { border-color: rgba(255,4,54,0.20) !important; }
+.border-green-500\/25 { border-color: rgba(255,4,54,0.25) !important; }
+.border-green-500\/30 { border-color: rgba(255,4,54,0.30) !important; }
+
+/* Focus rings */
+.focus\:ring-green-500\/40:focus     { --tw-ring-color: rgba(255,4,54,0.40) !important; }
+.focus\:border-green-500\/50:focus   { border-color:    rgba(255,4,54,0.50) !important; }
+.focus\:border-green-500\/60:focus   { border-color:    rgba(255,4,54,0.60) !important; }
+
+/* Animate pulse dot (inbox notification) */
+.bg-green-400 { background-color: #FF0436 !important; }
+.animate-pulse.bg-green-400 { background-color: #FF0436 !important; }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Scrollbar

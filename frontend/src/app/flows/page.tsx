@@ -276,7 +276,7 @@ function AIGenerateModal({ open, onClose, workspaceId }: { open: boolean; onClos
                       <div className="flex flex-wrap gap-1 mb-2">
                         {flow.trigger_keywords.split(',').map((kw) => kw.trim()).filter(Boolean).map((kw) => (
                           <span key={kw} className="text-xs px-2 py-0.5 rounded-full"
-                            style={{ background: 'rgba(22,163,74,0.12)', color: '#4ade80' }}>
+                            style={{ background: 'rgba(255,4,54,0.12)', color: '#ff4d6b' }}>
                             {kw}
                           </span>
                         ))}

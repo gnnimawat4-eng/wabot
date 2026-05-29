@@ -111,7 +111,7 @@ export default function DashboardPage() {
                 <XAxis dataKey="day" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.35)' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.35)' }} axisLine={false} tickLine={false} width={28} />
                 <Tooltip contentStyle={{ background: '#0d1424', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff' }} labelStyle={{ color: 'rgba(255,255,255,0.6)' }} />
-                <Area type="monotone" dataKey="inbound" stackId="1" stroke="#22c55e" fill="rgba(34,197,94,0.12)" name="Inbound" />
+                <Area type="monotone" dataKey="inbound" stackId="1" stroke="#FF0436" fill="rgba(255,4,54,0.12)" name="Inbound" />
                 <Area type="monotone" dataKey="outbound" stackId="1" stroke="#3b82f6" fill="rgba(59,130,246,0.12)" name="Outbound" />
               </AreaChart>
             </ResponsiveContainer>

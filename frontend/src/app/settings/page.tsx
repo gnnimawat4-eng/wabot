@@ -150,7 +150,7 @@ function TrashSection({ workspaceId, onRestore }: { workspaceId: string; onResto
                   onClick={() => restore.mutate({ type: tab, id: item.id })}
                   disabled={restore.isPending}
                   className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}>
+                  style={{ background: 'rgba(255,4,54,0.12)', color: '#FF0436' }}>
                   <RotateCcw className="h-3 w-3" />Restore
                 </button>
                 <button
@@ -541,7 +541,7 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-semibold capitalize text-sm" style={{ color: 'var(--wb-text)' }}>{sub?.plan ?? 'Free Trial'}</span>
                       <span className="text-xs px-2 py-0.5 rounded-full capitalize"
-                        style={{ background: sub?.status === 'active' ? 'rgba(22,163,74,0.12)' : 'rgba(59,130,246,0.12)', color: sub?.status === 'active' ? '#16a34a' : '#3b82f6' }}>
+                        style={{ background: sub?.status === 'active' ? 'rgba(255,4,54,0.12)' : 'rgba(59,130,246,0.12)', color: sub?.status === 'active' ? '#FF0436' : '#3b82f6' }}>
                         {sub?.status ?? 'trial'}
                       </span>
                     </div>
