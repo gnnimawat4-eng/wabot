@@ -38,12 +38,14 @@ const toDb = (body) =>
 module.exports = async function workspaceRoutes(fastify) {
   const auth = { onRequest: [fastify.authenticate] };
 
+  // ── List workspaces (exclude soft-deleted) ──────────────────────────────
   fastify.get('/', auth, async (req) => {
     const userId = req.user.sub;
     const { data, error } = await supabase
       .from('workspaces')
       .select('*')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .is('deleted_at', null);
     if (error) throw error;
     return (data || []).map(toWorkspace);
   });
@@ -60,7 +62,6 @@ module.exports = async function workspaceRoutes(fastify) {
       .single();
     if (error) throw error;
 
-    // Auto-create 7-day trial subscription
     await supabase.from('subscriptions').insert({
       workspace_id: data.id,
       user_id: userId,
@@ -100,7 +101,64 @@ module.exports = async function workspaceRoutes(fastify) {
     return toWorkspace(data);
   });
 
-  // Locations (tables / rooms)
+  // ── Soft delete workspace ───────────────────────────────────────────────
+  fastify.delete('/:id', auth, async (req, reply) => {
+    const { id } = req.params;
+    const userId = req.user.sub;
+    const { error } = await supabase
+      .from('workspaces')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('user_id', userId);
+    if (error) throw error;
+    return reply.code(204).send();
+  });
+
+  // ── Trash: get all deleted items for this workspace ─────────────────────
+  fastify.get('/:id/trash', auth, async (req) => {
+    const { id } = req.params;
+    const userId = req.user.sub;
+
+    const [contacts, flows, broadcasts, workspaces] = await Promise.all([
+      supabase.from('contacts').select('id, name, phone, deleted_at').eq('workspace_id', id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
+      supabase.from('flows').select('id, name, deleted_at').eq('workspace_id', id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
+      supabase.from('broadcasts').select('id, name, deleted_at').eq('workspace_id', id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
+      supabase.from('workspaces').select('id, name, deleted_at').eq('user_id', userId).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
+    ]);
+
+    return {
+      contacts:   contacts.data   || [],
+      flows:      flows.data      || [],
+      broadcasts: broadcasts.data || [],
+      workspaces: workspaces.data || [],
+    };
+  });
+
+  // ── Trash: restore an item ──────────────────────────────────────────────
+  fastify.patch('/:id/trash/restore/:type/:itemId', auth, async (req, reply) => {
+    const { type, itemId } = req.params;
+    const tables = { contacts: 'contacts', flows: 'flows', broadcasts: 'broadcasts', workspaces: 'workspaces' };
+    const table = tables[type];
+    if (!table) return reply.code(400).send({ error: 'Invalid type' });
+
+    const { error } = await supabase.from(table).update({ deleted_at: null }).eq('id', itemId);
+    if (error) throw error;
+    return reply.code(200).send({ ok: true });
+  });
+
+  // ── Trash: permanently delete an item ──────────────────────────────────
+  fastify.delete('/:id/trash/permanent/:type/:itemId', auth, async (req, reply) => {
+    const { type, itemId } = req.params;
+    const tables = { contacts: 'contacts', flows: 'flows', broadcasts: 'broadcasts', workspaces: 'workspaces' };
+    const table = tables[type];
+    if (!table) return reply.code(400).send({ error: 'Invalid type' });
+
+    const { error } = await supabase.from(table).delete().eq('id', itemId);
+    if (error) throw error;
+    return reply.code(204).send();
+  });
+
+  // ── Locations (tables / rooms) ──────────────────────────────────────────
   fastify.get('/:id/locations', auth, async (req) => {
     const { id } = req.params;
     const { data, error } = await supabase
@@ -158,9 +216,9 @@ module.exports = async function workspaceRoutes(fastify) {
     const { data, error } = await supabase.rpc('get_workspace_stats', { ws_id: id });
     if (error) {
       const [contacts, messages, flows] = await Promise.all([
-        supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('workspace_id', id),
+        supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('workspace_id', id).is('deleted_at', null),
         supabase.from('messages').select('id', { count: 'exact', head: true }).eq('workspace_id', id),
-        supabase.from('flows').select('id', { count: 'exact', head: true }).eq('workspace_id', id).eq('is_active', true),
+        supabase.from('flows').select('id', { count: 'exact', head: true }).eq('workspace_id', id).eq('is_active', true).is('deleted_at', null),
       ]);
       return {
         total_contacts: contacts.count || 0,

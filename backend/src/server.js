@@ -51,6 +51,26 @@ app.register(require('./routes/businessData'), { prefix: '/workspaces' });
 app.register(require('./routes/billing'), { prefix: '/billing' });
 app.register(require('./routes/admin'), { prefix: '/admin' });
 
+// Daily cron: hard-delete items soft-deleted more than 30 days ago
+const { supabase: supabaseAdmin } = require('./services/supabase');
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+async function purgeExpiredTrash() {
+  const cutoff = new Date(Date.now() - THIRTY_DAYS_MS).toISOString();
+  const tables = ['contacts', 'flows', 'broadcasts', 'workspaces'];
+  for (const table of tables) {
+    const { error } = await supabaseAdmin.from(table).delete()
+      .not('deleted_at', 'is', null)
+      .lt('deleted_at', cutoff);
+    if (error) console.error(`Trash purge error (${table}):`, error.message);
+  }
+  console.log('Trash purge complete');
+}
+
+// Run once on startup (catches anything missed), then every 24 hours
+setTimeout(purgeExpiredTrash, 5000);
+setInterval(purgeExpiredTrash, 24 * 60 * 60 * 1000);
+
 const start = async () => {
   try {
     await app.listen({ port: parseInt(process.env.PORT || '3001'), host: '0.0.0.0' });

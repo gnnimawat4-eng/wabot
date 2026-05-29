@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, Check, AlertTriangle } from 'lucide-react';
+import { Bot, Check, AlertTriangle, Trash2, RotateCcw } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useWorkspaceStore } from '@/lib/store';
-import { createWorkspace, updateWorkspace, getSubscription, createSubscription } from '@/lib/api';
+import { createWorkspace, updateWorkspace, getSubscription, createSubscription, getTrash, restoreTrashItem, permanentDeleteTrashItem } from '@/lib/api';
 import { BUSINESS_TYPES, type BusinessType } from '@/lib/businessConfig';
 import { useTheme, type Theme } from '@/app/providers';
 import { toast } from 'sonner';
@@ -19,14 +19,7 @@ const AI_LANGUAGES = [
   { value: 'hindi', label: 'Always Hindi' },
 ];
 
-type Section = 'workspace' | 'whatsapp' | 'ai' | 'billing';
-
-const SECTIONS: { id: Section; label: string }[] = [
-  { id: 'workspace', label: 'Workspace Settings' },
-  { id: 'whatsapp', label: 'WhatsApp Connection' },
-  { id: 'ai',        label: 'AI Settings' },
-  { id: 'billing',   label: 'Billing & Plans' },
-];
+type Section = 'workspace' | 'whatsapp' | 'ai' | 'billing' | 'trash';
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -57,6 +50,157 @@ function Toggle({ enabled, onChange, label, description }: { enabled: boolean; o
 function Divider() {
   return <div className="my-4 border-t" style={{ borderColor: 'var(--wb-border)' }} />;
 }
+
+type TrashItem = { id: string; name?: string; phone?: string; deleted_at: string };
+type TrashData = { workspaces: TrashItem[]; contacts: TrashItem[]; flows: TrashItem[]; broadcasts: TrashItem[] };
+
+type TrashTab = 'workspaces' | 'contacts' | 'flows' | 'broadcasts';
+
+function TrashSection({ workspaceId, onRestore }: { workspaceId: string; onRestore: () => void }) {
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<TrashTab>('workspaces');
+  const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: string; name: string } | null>(null);
+
+  const { data: trash, isLoading } = useQuery<TrashData>({
+    queryKey: ['trash', workspaceId],
+    queryFn: () => getTrash(workspaceId),
+    enabled: !!workspaceId,
+  });
+
+  const restore = useMutation({
+    mutationFn: ({ type, id }: { type: string; id: string }) =>
+      restoreTrashItem(workspaceId, type, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['trash', workspaceId] });
+      toast.success('Restored successfully!');
+      onRestore();
+    },
+    onError: () => toast.error('Failed to restore'),
+  });
+
+  const permDelete = useMutation({
+    mutationFn: ({ type, id }: { type: string; id: string }) =>
+      permanentDeleteTrashItem(workspaceId, type, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['trash', workspaceId] });
+      setConfirmDelete(null);
+      toast.success('Permanently deleted');
+    },
+    onError: () => toast.error('Failed to delete'),
+  });
+
+  const TABS: { id: TrashTab; label: string }[] = [
+    { id: 'workspaces', label: 'Workspaces' },
+    { id: 'contacts',   label: 'Contacts' },
+    { id: 'flows',      label: 'Flows' },
+    { id: 'broadcasts', label: 'Broadcasts' },
+  ];
+
+  const items: TrashItem[] = trash?.[tab] ?? [];
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold mb-1" style={{ color: 'var(--wb-text)' }}>Recently Deleted</h2>
+        <p className="text-sm" style={{ color: 'var(--wb-text-3)' }}>Items are permanently deleted after 30 days</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'var(--wb-bg-hover)' }}>
+        {TABS.map((t) => {
+          const count = trash?.[t.id]?.length ?? 0;
+          return (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className="flex-1 py-1.5 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1"
+              style={tab === t.id ? { background: 'var(--wb-bg-sidebar)', color: 'var(--wb-text)' } : { color: 'var(--wb-text-3)' }}>
+              {t.label}
+              {count > 0 && (
+                <span className="text-[10px] px-1 py-0.5 rounded-full bg-red-500/20 text-red-400 leading-none">{count}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Items list */}
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1, 2].map((i) => <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: 'var(--wb-bg-hover)' }} />)}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 gap-2" style={{ color: 'var(--wb-text-3)' }}>
+          <Trash2 className="h-8 w-8 opacity-30" />
+          <p className="text-sm">No deleted items</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {items.map((item) => (
+            <div key={item.id} className="flex items-center justify-between rounded-lg px-4 py-3"
+              style={{ border: '1px solid var(--wb-border)', background: 'var(--wb-bg)' }}>
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate" style={{ color: 'var(--wb-text)' }}>
+                  {item.name || item.phone || item.id}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--wb-text-3)' }}>
+                  Deleted on: {new Date(item.deleted_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </p>
+              </div>
+              <div className="flex gap-2 shrink-0 ml-4">
+                <button
+                  onClick={() => restore.mutate({ type: tab, id: item.id })}
+                  disabled={restore.isPending}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ background: 'rgba(22,163,74,0.12)', color: '#16a34a' }}>
+                  <RotateCcw className="h-3 w-3" />Restore
+                </button>
+                <button
+                  onClick={() => setConfirmDelete({ type: tab, id: item.id, name: item.name || item.phone || item.id })}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
+                  <Trash2 className="h-3 w-3" />Delete Forever
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Permanent delete confirmation */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setConfirmDelete(null)}>
+          <div className="rounded-xl p-6 max-w-sm w-full shadow-2xl" style={{ background: 'var(--wb-bg-sidebar)', border: '1px solid var(--wb-border)' }}
+            onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm font-semibold mb-2" style={{ color: 'var(--wb-text)' }}>Delete permanently?</p>
+            <p className="text-xs mb-5" style={{ color: 'var(--wb-text-3)' }}>
+              This cannot be undone. "{confirmDelete.name}" will be gone forever.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmDelete(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{ border: '1px solid var(--wb-border)', color: 'var(--wb-text-2)' }}>
+                Cancel
+              </button>
+              <button
+                onClick={() => permDelete.mutate({ type: confirmDelete.type, id: confirmDelete.id })}
+                disabled={permDelete.isPending}
+                className="flex-1 py-2 rounded-lg text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-50">
+                {permDelete.isPending ? 'Deleting…' : 'Delete Forever'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const SECTIONS: { id: Section; label: string }[] = [
+  { id: 'workspace', label: 'Workspace Settings' },
+  { id: 'whatsapp',  label: 'WhatsApp Connection' },
+  { id: 'ai',        label: 'AI Settings' },
+  { id: 'billing',   label: 'Billing & Plans' },
+];
 
 export default function SettingsPage() {
   const { activeWorkspace, setWorkspaces, workspaces } = useWorkspaceStore();
@@ -145,6 +289,16 @@ export default function SettingsPage() {
     enabled: !!activeWorkspace,
   });
 
+  const { data: trash } = useQuery({
+    queryKey: ['trash', activeWorkspace?.id],
+    queryFn: () => getTrash(activeWorkspace!.id),
+    enabled: !!activeWorkspace,
+    refetchInterval: 60_000,
+  });
+  const trashCount = trash
+    ? (trash.workspaces?.length ?? 0) + (trash.contacts?.length ?? 0) + (trash.flows?.length ?? 0) + (trash.broadcasts?.length ?? 0)
+    : 0;
+
   const handleUpgrade = async (plan: string) => {
     if (!activeWorkspace) return;
     try {
@@ -185,19 +339,29 @@ export default function SettingsPage() {
         <div className="w-52 shrink-0 p-4 flex flex-col gap-1 border-r" style={{ borderColor: 'var(--wb-border)' }}>
           <p className="text-xs font-semibold uppercase tracking-wider px-3 mb-2" style={{ color: 'var(--wb-text-3)' }}>Settings</p>
           {SECTIONS.map((sec) => (
-            <button
-              key={sec.id}
-              onClick={() => setSection(sec.id)}
+            <button key={sec.id} onClick={() => setSection(sec.id)}
               className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors"
-              style={section === sec.id
-                ? { background: 'var(--wb-bg-active)', color: 'var(--wb-accent)', fontWeight: 600 }
-                : { color: 'var(--wb-text-2)' }}
-              onMouseEnter={(e) => { if (section !== sec.id) { e.currentTarget.style.background = 'var(--wb-bg-hover)'; } }}
-              onMouseLeave={(e) => { if (section !== sec.id) { e.currentTarget.style.background = 'transparent'; } }}
-            >
+              style={section === sec.id ? { background: 'var(--wb-bg-active)', color: 'var(--wb-accent)', fontWeight: 600 } : { color: 'var(--wb-text-2)' }}
+              onMouseEnter={(e) => { if (section !== sec.id) e.currentTarget.style.background = 'var(--wb-bg-hover)'; }}
+              onMouseLeave={(e) => { if (section !== sec.id) e.currentTarget.style.background = 'transparent'; }}>
               {sec.label}
             </button>
           ))}
+          {/* Recently Deleted */}
+          <button onClick={() => setSection('trash')}
+            className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between"
+            style={section === 'trash' ? { background: 'var(--wb-bg-active)', color: 'var(--wb-accent)', fontWeight: 600 } : { color: 'var(--wb-text-2)' }}
+            onMouseEnter={(e) => { if (section !== 'trash') e.currentTarget.style.background = 'var(--wb-bg-hover)'; }}
+            onMouseLeave={(e) => { if (section !== 'trash') e.currentTarget.style.background = 'transparent'; }}>
+            <span className="flex items-center gap-2">
+              <Trash2 className="h-3.5 w-3.5" />Recently Deleted
+            </span>
+            {trashCount > 0 && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 leading-none">
+                {trashCount}
+              </span>
+            )}
+          </button>
           <Divider />
           {/* Appearance */}
           <p className="text-xs font-semibold uppercase tracking-wider px-3 mb-2" style={{ color: 'var(--wb-text-3)' }}>Appearance</p>
@@ -354,6 +518,11 @@ export default function SettingsPage() {
                 {aiSaved ? <><Check className="h-3.5 w-3.5 mr-1.5" />Saved</> : 'Save AI Settings'}
               </Button>
             </div>
+          )}
+
+          {/* ── Recently Deleted ── */}
+          {section === 'trash' && (
+            <TrashSection workspaceId={activeWorkspace?.id ?? ''} onRestore={() => qc.invalidateQueries({ queryKey: ['trash', activeWorkspace?.id] })} />
           )}
 
           {/* ── Billing ── */}

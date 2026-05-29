@@ -20,6 +20,7 @@ interface WorkspaceStore {
   activeWorkspace: Workspace | null;
   setWorkspaces: (ws: Workspace[]) => void;
   setWorkspace: (ws: Workspace) => void;
+  removeWorkspace: (id: string) => void;
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>()(
@@ -38,6 +39,14 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             null,
         })),
       setWorkspace: (activeWorkspace) => set({ activeWorkspace }),
+      removeWorkspace: (id) =>
+        set((state) => {
+          const remaining = state.workspaces.filter((w) => w.id !== id);
+          const active = state.activeWorkspace?.id === id
+            ? (remaining[0] ?? null)
+            : state.activeWorkspace;
+          return { workspaces: remaining, activeWorkspace: active };
+        }),
     }),
     {
       name: 'wabot-workspace',

@@ -1,26 +1,21 @@
 const { supabase } = require('../services/supabase');
 
-// Live DB uses trigger_type + trigger_config; reconstruct trigger for frontend
 const toFlow = (row) => ({
   ...row,
   trigger: { type: row.trigger_type, ...(row.trigger_config || {}) },
 });
 
-// Split frontend trigger object into DB columns
 const triggerToDb = (trigger = {}) => ({
   trigger_type: trigger.type || 'keyword',
   trigger_config: trigger,
 });
 
-// Build step row satisfying both old NOT-NULL columns and new typed columns
 const toStepRow = (s, i, flowId, workspaceId) => ({
   flow_id: flowId,
   workspace_id: workspaceId,
-  // old required columns
   step_order: i,
   message_type: s.type || 'text',
   message_body: s.config || {},
-  // new typed columns
   position: i,
   type: s.type,
   config: s.config || {},
@@ -35,6 +30,7 @@ module.exports = async function flowRoutes(fastify) {
       .from('flows')
       .select('*, flow_steps(*)')
       .eq('workspace_id', workspaceId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
     if (error) throw error;
     return (data || []).map(toFlow);
@@ -88,11 +84,12 @@ module.exports = async function flowRoutes(fastify) {
     return toFlow(data);
   });
 
+  // Soft delete
   fastify.delete('/:workspaceId/flows/:flowId', auth, async (req, reply) => {
     const { workspaceId, flowId } = req.params;
     const { error } = await supabase
       .from('flows')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', flowId)
       .eq('workspace_id', workspaceId);
     if (error) throw error;
@@ -140,8 +137,6 @@ Return ONLY a valid JSON array, no explanation, no markdown:
       });
 
       const text = completion.choices[0]?.message?.content || '[]';
-
-      // Extract JSON array from response (handle markdown code blocks too)
       const match = text.match(/\[[\s\S]*\]/);
       if (!match) return reply.code(500).send({ error: 'AI returned an unexpected format. Please try again.' });
 

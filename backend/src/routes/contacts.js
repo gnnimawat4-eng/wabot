@@ -11,6 +11,7 @@ module.exports = async function contactRoutes(fastify) {
       .from('contacts')
       .select('*', { count: 'exact' })
       .eq('workspace_id', workspaceId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .range(Number(offset), Number(offset) + Number(limit) - 1);
 
@@ -47,11 +48,12 @@ module.exports = async function contactRoutes(fastify) {
     return data;
   });
 
+  // Soft delete
   fastify.delete('/:workspaceId/contacts/:contactId', auth, async (req, reply) => {
     const { workspaceId, contactId } = req.params;
     const { error } = await supabase
       .from('contacts')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', contactId)
       .eq('workspace_id', workspaceId);
     if (error) throw error;
@@ -61,7 +63,7 @@ module.exports = async function contactRoutes(fastify) {
   // Bulk CSV import
   fastify.post('/:workspaceId/contacts/import', auth, async (req, reply) => {
     const { workspaceId } = req.params;
-    const { contacts } = req.body; // array of { name, phone, stage?, tags? }
+    const { contacts } = req.body;
     if (!Array.isArray(contacts) || !contacts.length) {
       return reply.code(400).send({ error: 'contacts array required' });
     }

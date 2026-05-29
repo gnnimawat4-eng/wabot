@@ -27,7 +27,16 @@ export const getWorkspaces = () => api.get('/workspaces').then((r) => r.data);
 export const createWorkspace = (name: string) => api.post('/workspaces', { name }).then((r) => r.data);
 export const updateWorkspace = (id: string, data: Record<string, unknown>) =>
   api.patch(`/workspaces/${id}`, data).then((r) => r.data);
+export const deleteWorkspace = (id: string) => api.delete(`/workspaces/${id}`);
 export const getWorkspaceStats = (id: string) => api.get(`/workspaces/${id}/stats`).then((r) => r.data);
+
+// Trash
+export const getTrash = (workspaceId: string) =>
+  api.get(`/workspaces/${workspaceId}/trash`).then((r) => r.data);
+export const restoreTrashItem = (workspaceId: string, type: string, itemId: string) =>
+  api.patch(`/workspaces/${workspaceId}/trash/restore/${type}/${itemId}`).then((r) => r.data);
+export const permanentDeleteTrashItem = (workspaceId: string, type: string, itemId: string) =>
+  api.delete(`/workspaces/${workspaceId}/trash/permanent/${type}/${itemId}`);
 
 // Contacts
 export const getContacts = (workspaceId: string, params?: Record<string, unknown>) =>

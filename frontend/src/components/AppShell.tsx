@@ -11,11 +11,11 @@ import {
   QrCode, CalendarDays, BellRing, ShoppingBag, ShoppingCart, UtensilsCrossed,
   Building2, MapPin, Target, CalendarCheck, Scissors, UserCheck,
   Heart, Stethoscope, BookOpen, GraduationCap, CreditCard,
-  Car, Key, Wrench,
+  Car, Key, Wrench, MoreHorizontal, Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { getWorkspaces, createWorkspace, getContacts, getSubscription } from '@/lib/api';
+import { getWorkspaces, createWorkspace, getContacts, getSubscription, deleteWorkspace } from '@/lib/api';
 import { useWorkspaceStore } from '@/lib/store';
 import { initials } from '@/lib/utils';
 import { getBusinessConfig, DEFAULT_NAV } from '@/lib/businessConfig';
@@ -146,12 +146,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, toggle: toggleTheme } = useTheme();
-  const { workspaces, activeWorkspace, setWorkspaces, setWorkspace } = useWorkspaceStore();
+  const { workspaces, activeWorkspace, setWorkspaces, setWorkspace, removeWorkspace } = useWorkspaceStore();
   const [user, setUser] = useState<{ email: string; name: string } | null>(null);
   const [showNewWs, setShowNewWs] = useState(false);
   const [newWsName, setNewWsName] = useState('');
   const [collapsed, setCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(220);
+  const [wsMenuOpen, setWsMenuOpen] = useState<string | null>(null);
+  const [deleteConfirmWs, setDeleteConfirmWs] = useState<{ id: string; name: string } | null>(null);
+  const [deletingWs, setDeletingWs] = useState(false);
   const dragging = useRef(false);
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(0);
@@ -280,6 +283,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.push('/login');
   };
 
+  const handleDeleteWorkspace = async () => {
+    if (!deleteConfirmWs) return;
+    if (deleteConfirmWs.id === activeWorkspace?.id) {
+      toast.error('Switch to another workspace first');
+      setDeleteConfirmWs(null);
+      return;
+    }
+    setDeletingWs(true);
+    try {
+      await deleteWorkspace(deleteConfirmWs.id);
+      removeWorkspace(deleteConfirmWs.id);
+      toast.success(`"${deleteConfirmWs.name}" moved to Recently Deleted`);
+    } catch {
+      toast.error('Failed to delete workspace');
+    } finally {
+      setDeletingWs(false);
+      setDeleteConfirmWs(null);
+    }
+  };
+
   const isActive = (href: string) => href === '/dashboard' ? pathname === href : pathname.startsWith(href.split('?')[0]);
 
   const sidebarStyle: React.CSSProperties = {
@@ -294,6 +317,39 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <OnboardingModal />
+
+      {/* Delete workspace confirmation modal */}
+      {deleteConfirmWs && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setDeleteConfirmWs(null)}>
+          <div className="rounded-xl p-6 max-w-sm w-full shadow-2xl" style={{ background: 'var(--wb-bg-sidebar)', border: '1px solid var(--wb-border)' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-9 w-9 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
+                <Trash2 className="h-4 w-4 text-red-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: 'var(--wb-text)' }}>Move to Recently Deleted?</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--wb-text-3)' }}>"{deleteConfirmWs.name}"</p>
+              </div>
+            </div>
+            <p className="text-xs mb-5" style={{ color: 'var(--wb-text-3)' }}>
+              You can restore it within 30 days from Recently Deleted in Settings.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setDeleteConfirmWs(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{ border: '1px solid var(--wb-border)', color: 'var(--wb-text-2)' }}>
+                Cancel
+              </button>
+              <button onClick={handleDeleteWorkspace} disabled={deletingWs}
+                className="flex-1 py-2 rounded-lg text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-50">
+                {deletingWs ? 'Moving…' : 'Move to Trash'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex h-screen">
         {/* ── Sidebar ── */}
         <aside className="flex flex-col shrink-0" style={sidebarStyle}>
@@ -336,14 +392,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <p className="text-xs font-semibold uppercase tracking-wider px-2 mb-1.5" style={{ color: 'var(--wb-text-3)' }}>Workspaces</p>
               <div className="space-y-0.5">
                 {workspaces.map((ws) => (
-                  <button key={ws.id} onClick={() => setWorkspace(ws)}
-                    className="w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors"
-                    style={ws.id === activeWorkspace?.id ? { color: 'var(--wb-text)', fontWeight: 600 } : { color: 'var(--wb-text-2)' }}
-                    onMouseEnter={(e) => { if (ws.id !== activeWorkspace?.id) e.currentTarget.style.background = 'var(--wb-bg-hover)'; }}
-                    onMouseLeave={(e) => { if (ws.id !== activeWorkspace?.id) e.currentTarget.style.background = 'transparent'; }}>
-                    {ws.id === activeWorkspace?.id && <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: 'var(--wb-accent)' }} />}
-                    <span className="truncate">{ws.name}</span>
-                  </button>
+                  <div key={ws.id} className="relative group/ws">
+                    <button onClick={() => setWorkspace(ws)}
+                      className="w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors pr-7"
+                      style={ws.id === activeWorkspace?.id ? { color: 'var(--wb-text)', fontWeight: 600 } : { color: 'var(--wb-text-2)' }}
+                      onMouseEnter={(e) => { if (ws.id !== activeWorkspace?.id) e.currentTarget.style.background = 'var(--wb-bg-hover)'; }}
+                      onMouseLeave={(e) => { if (ws.id !== activeWorkspace?.id) e.currentTarget.style.background = 'transparent'; }}>
+                      {ws.id === activeWorkspace?.id && <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: 'var(--wb-accent)' }} />}
+                      <span className="truncate">{ws.name}</span>
+                    </button>
+                    {/* 3-dot menu — visible on hover */}
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/ws:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setWsMenuOpen(wsMenuOpen === ws.id ? null : ws.id); }}
+                        className="p-0.5 rounded hover:bg-white/10 transition-colors"
+                        style={{ color: 'var(--wb-text-3)' }}
+                        title="Workspace options"
+                      >
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                      </button>
+                      {wsMenuOpen === ws.id && (
+                        <div
+                          className="absolute left-0 top-full mt-1 z-50 rounded-lg py-1 min-w-[140px] shadow-lg"
+                          style={{ background: 'var(--wb-bg-sidebar)', border: '1px solid var(--wb-border)' }}
+                          onMouseLeave={() => setWsMenuOpen(null)}
+                        >
+                          <button
+                            onClick={() => { setWsMenuOpen(null); setDeleteConfirmWs({ id: ws.id, name: ws.name }); }}
+                            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 ))}
                 {showNewWs ? (
                   <div className="flex gap-1 mt-1">

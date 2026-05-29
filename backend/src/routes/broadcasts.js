@@ -10,6 +10,7 @@ module.exports = async function broadcastRoutes(fastify) {
       .from('broadcasts')
       .select('*')
       .eq('workspace_id', workspaceId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
     if (error) throw error;
     return data;
@@ -54,5 +55,17 @@ module.exports = async function broadcastRoutes(fastify) {
       .single();
     if (error) throw error;
     return data;
+  });
+
+  // Soft delete
+  fastify.delete('/:workspaceId/broadcasts/:broadcastId', auth, async (req, reply) => {
+    const { workspaceId, broadcastId } = req.params;
+    const { error } = await supabase
+      .from('broadcasts')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', broadcastId)
+      .eq('workspace_id', workspaceId);
+    if (error) throw error;
+    return reply.code(204).send();
   });
 };
