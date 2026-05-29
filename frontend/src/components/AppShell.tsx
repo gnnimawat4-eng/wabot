@@ -4,7 +4,15 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Settings, Plus, Sun, Moon, Monitor, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import {
+  Settings, Plus, Sun, Moon, Monitor, LogOut, ChevronLeft, ChevronRight,
+  LayoutDashboard, Users, GitBranch, Megaphone, MessageSquare, Shield,
+  QrCode, CalendarDays, BellRing, ShoppingBag, ShoppingCart, UtensilsCrossed,
+  Building2, MapPin, Target, CalendarCheck, Scissors, UserCheck,
+  Heart, Stethoscope, BookOpen, GraduationCap, CreditCard,
+  Car, Key, Wrench,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { getWorkspaces, createWorkspace, getContacts, getSubscription } from '@/lib/api';
@@ -20,6 +28,48 @@ const s = {
   sidebar: { background: 'var(--wb-bg-sidebar)', borderRight: '1px solid var(--wb-border)' } as React.CSSProperties,
   main:    { background: 'var(--wb-bg)' } as React.CSSProperties,
 };
+
+// Map href (optionally qualified with emoji) → Lucide icon
+// Format: '/path' for default, '/path:emoji' to resolve collisions (e.g. /services salon vs clinic)
+const ICON_MAP: Record<string, LucideIcon> = {
+  '/dashboard':       LayoutDashboard,
+  '/contacts':        Users,
+  '/flows':           GitBranch,
+  '/broadcasts':      Megaphone,
+  '/inbox':           MessageSquare,
+  '/settings':        Settings,
+  '/admin':           Shield,
+  // Hotel
+  '/tables-qr':       QrCode,
+  '/bookings':        CalendarDays,
+  '/room-service':    BellRing,
+  // Restaurant
+  '/orders':          ShoppingBag,
+  '/orders:🛒':       ShoppingCart,  // Retail orders use 🛒
+  '/menu':            UtensilsCrossed,
+  // Real Estate
+  '/properties':      Building2,
+  '/site-visits':     MapPin,
+  '/leads':           Target,
+  // Salon / Clinic
+  '/appointments':    CalendarCheck,
+  '/services':        Scissors,       // Salon default
+  '/services:💊':     Stethoscope,   // Clinic overrides with 💊
+  '/service-booking': Wrench,         // Automobile
+  '/staff':           UserCheck,
+  '/patients':        Heart,
+  // Education
+  '/classes':         BookOpen,
+  '/students':        GraduationCap,
+  '/fees':            CreditCard,
+  // Automobile
+  '/vehicles':        Car,
+  '/test-drives':     Key,
+};
+
+function getNavIcon(href: string, emoji: string): LucideIcon | null {
+  return ICON_MAP[`${href}:${emoji}`] ?? ICON_MAP[href] ?? null;
+}
 
 function IconBtn({ onClick, href, title, children }: {
   onClick?: () => void; href?: string; title?: string; children: React.ReactNode;
@@ -45,6 +95,8 @@ function IconBtn({ onClick, href, title, children }: {
 function NavItem({ href, label, emoji, active, dot, collapsed }: {
   href: string; label: string; emoji?: string; active: boolean; dot?: boolean; collapsed?: boolean;
 }) {
+  const Icon = getNavIcon(href, emoji ?? '');
+
   if (collapsed) {
     return (
       <Link
@@ -55,22 +107,27 @@ function NavItem({ href, label, emoji, active, dot, collapsed }: {
         onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--wb-bg-hover)'; }}
         onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}
       >
-        <span className="text-base leading-none">{emoji || label[0]}</span>
+        {Icon
+          ? <Icon className="h-4 w-4" />
+          : <span className="text-sm leading-none">{emoji || label[0]}</span>
+        }
         {dot && !active && (
           <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
         )}
       </Link>
     );
   }
+
   return (
     <Link
       href={href}
-      className="flex items-center justify-between px-3 py-1.5 rounded-md text-sm transition-colors"
+      className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors"
       style={active ? { background: 'var(--wb-bg-active)', color: 'var(--wb-accent)', fontWeight: 600 } : { color: 'var(--wb-text-2)' }}
       onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--wb-bg-hover)'; }}
       onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}
     >
-      <span>{label}</span>
+      {Icon && <Icon className="h-4 w-4 shrink-0" />}
+      <span className="flex-1 truncate">{label}</span>
       {(active || dot) && (
         <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${dot && !active ? 'bg-green-400 animate-pulse' : ''}`}
           style={active ? { background: 'var(--wb-accent)' } : {}} />
@@ -386,7 +443,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* ── Main ── */}
         <main className="flex-1 flex flex-col overflow-hidden" style={s.main}>
-          {/* Trial banner */}
           {trialDaysLeft !== null && trialDaysLeft > 0 && (
             <div className="shrink-0 px-4 py-2 flex items-center justify-between text-sm"
               style={{ background: 'rgba(22,163,74,0.08)', borderBottom: '1px solid rgba(22,163,74,0.15)' }}>
