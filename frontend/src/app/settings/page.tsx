@@ -196,20 +196,11 @@ function TrashSection({ workspaceId, onRestore }: { workspaceId: string; onResto
   );
 }
 
-// ── Admin credentials & session unlock ───────────────────────────────────────
+// ── Admin credentials ─────────────────────────────────────────────────────────
 const CRED_USER = 'system';
 const CRED_PASS = 'manager';
 const ADMIN_EMAIL_SETTINGS = 'gnnimawat4@gmail.com';
 const PROTECTED_SECTIONS: Section[] = ['workspace', 'whatsapp', 'billing'];
-const UNLOCK_KEY = 'wabot_admin_ts';
-const UNLOCK_MS  = 30 * 60 * 1000; // 30 min
-
-const isUnlocked = () => {
-  if (typeof window === 'undefined') return false;
-  const ts = sessionStorage.getItem(UNLOCK_KEY);
-  return !!ts && (Date.now() - Number(ts)) < UNLOCK_MS;
-};
-const markUnlocked = () => sessionStorage.setItem(UNLOCK_KEY, String(Date.now()));
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'workspace', label: 'Workspace Settings' },
@@ -334,10 +325,12 @@ export default function SettingsPage() {
   const isTrial = sub?.status === 'trial' && !isAdminUser;
 
   const handleSectionClick = (target: Section) => {
-    if (isAdminUser || !PROTECTED_SECTIONS.includes(target) || isUnlocked()) {
+    // Admin bypasses the gate; unprotected sections open freely
+    if (isAdminUser || !PROTECTED_SECTIONS.includes(target)) {
       setSection(target);
       return;
     }
+    // Always ask — no caching
     setCredUser('');
     setCredPass('');
     setCredError('');
@@ -346,7 +339,6 @@ export default function SettingsPage() {
 
   const handleCredUnlock = () => {
     if (credUser.trim() === CRED_USER && credPass === CRED_PASS) {
-      markUnlocked();
       setSection(pendingSection!);
       setPendingSection(null);
     } else {
@@ -429,8 +421,8 @@ export default function SettingsPage() {
                 <button key={t} onClick={() => setTheme(t)}
                   className="flex-1 py-1.5 text-xs font-medium capitalize rounded transition-colors"
                   style={theme === t
-                    ? { background: 'var(--wb-accent)', color: '#ffffff' }
-                    : { color: 'var(--wb-text-2)' }}>
+                    ? { background: 'var(--wb-accent)', color: '#ffffff', fontWeight: 600 }
+                    : { background: 'transparent', color: 'var(--wb-text-2)' }}>
                   {t === 'system' ? 'Auto' : t.charAt(0).toUpperCase() + t.slice(1)}
                 </button>
               ))}
@@ -508,6 +500,7 @@ export default function SettingsPage() {
                   </Field>
                 )}
                 <Button className="bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
+                  style={{ color: '#ffffff' }}
                   onClick={() => saveWorkspaceName.mutate()} disabled={saveWorkspaceName.isPending || !wsName.trim() || isTrial}>
                   {saveWorkspaceName.isPending ? 'Saving…' : 'Save'}
                 </Button>
@@ -539,6 +532,7 @@ export default function SettingsPage() {
                       </div>
                     )}
                     <Button className="mt-3 bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
+                      style={{ color: '#ffffff' }}
                       onClick={() => saveBusinessType.mutate()} disabled={saveBusinessType.isPending || !btChanged || !businessType || isTrial}>
                       {saveBusinessType.isPending ? 'Saving…' : 'Save Business Type'}
                     </Button>
@@ -579,6 +573,7 @@ export default function SettingsPage() {
                     <input className={`${inp} font-mono text-xs opacity-60`} style={inpStyle} readOnly value={webhookUrl} />
                   </Field>
                   <Button className="bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
+                    style={{ color: '#ffffff' }}
                     onClick={() => saveWa.mutate()} disabled={saveWa.isPending}>
                     {saveWa.isPending ? 'Saving…' : 'Save'}
                   </Button>
@@ -619,7 +614,7 @@ export default function SettingsPage() {
                   value={systemPrompt} disabled={!activeWorkspace}
                   onChange={(e) => setSystemPrompt(e.target.value)} />
               </Field>
-              <Button className="bg-green-600 hover:bg-green-700 text-white h-9 text-sm" onClick={saveAiSettings}>
+              <Button className="bg-green-600 hover:bg-green-700 text-white h-9 text-sm" style={{ color: '#ffffff' }} onClick={saveAiSettings}>
                 {aiSaved ? <><Check className="h-3.5 w-3.5 mr-1.5" />Saved</> : 'Save AI Settings'}
               </Button>
             </div>
@@ -684,8 +679,8 @@ export default function SettingsPage() {
                           disabled={isCurrent}
                           className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0 ml-4"
                           style={isCurrent
-                            ? { border: '1px solid var(--wb-border)', color: 'var(--wb-text-3)' }
-                            : { background: 'var(--wb-accent)', color: '#fff' }}>
+                            ? { border: '1px solid var(--wb-border)', color: 'var(--wb-text-2)' }
+                            : { background: 'var(--wb-accent)', color: '#ffffff' }}>
                           {isCurrent ? 'Current' : 'Upgrade'}
                         </button>
                       </div>
@@ -742,7 +737,7 @@ export default function SettingsPage() {
                 Cancel
               </button>
               <button onClick={handleCredUnlock}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors text-white"
                 style={{ background: 'var(--wb-accent)', color: '#ffffff' }}>
                 Unlock
               </button>
