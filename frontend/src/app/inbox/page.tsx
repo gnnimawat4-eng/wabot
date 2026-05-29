@@ -48,17 +48,17 @@ export default function InboxPage() {
 
   return (
     <AppShell>
-      <div className="flex h-full bg-white dark:bg-[#0a0a0a]">
+      <div className="flex h-full bg-white dark:bg-[#1a1a1a]">
         {/* Contact list */}
-        <div className="w-72 flex flex-col shrink-0 border-r border-gray-200 dark:border-[#1f1f1f] bg-white dark:bg-[#111111]">
-          <div className="px-4 py-4 border-b border-gray-200 dark:border-[#1f1f1f]">
+        <div className="w-72 flex flex-col shrink-0 border-r border-gray-200 dark:border-[#2e2e2e] bg-white dark:bg-[#212121]">
+          <div className="px-4 py-4 border-b border-gray-200 dark:border-[#2e2e2e]">
             <p className="text-sm font-semibold text-gray-900 dark:text-white">Inbox</p>
             <p className="text-xs text-gray-500 dark:text-white/40 mt-0.5">{contacts.length} conversations</p>
           </div>
           <div className="flex-1 overflow-y-auto">
             {contactsLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 border-b border-gray-100 dark:border-[#1f1f1f] animate-pulse">
+                <div key={i} className="flex items-center gap-3 p-3 border-b border-gray-100 dark:border-[#2e2e2e] animate-pulse">
                   <div className="h-9 w-9 rounded-full bg-gray-200 dark:bg-white/10 shrink-0" />
                   <div className="flex-1 space-y-1.5">
                     <div className="h-3 bg-gray-200 dark:bg-white/10 rounded w-24" />
@@ -77,10 +77,10 @@ export default function InboxPage() {
                   key={c.id}
                   onClick={() => setSelectedContact(c)}
                   className={cn(
-                    'w-full flex items-center gap-3 p-3 border-b border-gray-100 dark:border-[#1f1f1f] text-left transition-colors',
+                    'w-full flex items-center gap-3 p-3 border-b border-gray-100 dark:border-[#2e2e2e] text-left transition-colors',
                     selectedContact?.id === c.id
                       ? 'bg-green-50 dark:bg-green-500/10'
-                      : 'hover:bg-gray-50 dark:hover:bg-[#1a1a1a]'
+                      : 'hover:bg-gray-50 dark:hover:bg-[#2a2a2a]'
                   )}
                 >
                   <div className="h-9 w-9 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 text-sm font-semibold flex items-center justify-center shrink-0">
@@ -97,11 +97,11 @@ export default function InboxPage() {
         </div>
 
         {/* Chat area */}
-        <div className="flex-1 flex flex-col bg-white dark:bg-[#0a0a0a]">
+        <div className="flex-1 flex flex-col bg-white dark:bg-[#1a1a1a]">
           {selectedContact ? (
             <>
               {/* Chat header */}
-              <div className="border-b border-gray-200 dark:border-[#1f1f1f] px-5 py-3 flex items-center gap-3 bg-white dark:bg-[#111111]">
+              <div className="border-b border-gray-200 dark:border-[#2e2e2e] px-5 py-3 flex items-center gap-3 bg-white dark:bg-[#212121]">
                 <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 text-xs font-semibold flex items-center justify-center">
                   {initials(selectedContact.name)}
                 </div>
@@ -112,7 +112,7 @@ export default function InboxPage() {
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50 dark:bg-[#0a0a0a]">
+              <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50 dark:bg-[#1a1a1a]">
                 {messagesLoading ? (
                   <div className="flex items-center justify-center h-full text-gray-400 dark:text-white/25 text-sm">Loading…</div>
                 ) : messages.length === 0 ? (
@@ -138,7 +138,7 @@ export default function InboxPage() {
               </div>
 
               {/* Input */}
-              <div className="border-t border-gray-200 dark:border-[#1f1f1f] p-3 flex gap-2 bg-white dark:bg-[#111111]">
+              <div className="border-t border-gray-200 dark:border-[#2e2e2e] p-3 flex gap-2 bg-white dark:bg-[#212121]">
                 <input
                   className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-white/30 focus:outline-none focus:border-green-500/50"
                   placeholder="Type a message…"

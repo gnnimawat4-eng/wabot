@@ -64,16 +64,16 @@
     --ring: 349 100% 60%;
 
     /* WaBot semantic tokens — dark */
-    --wb-bg:          #0a0a0a;
-    --wb-bg-sidebar:  #111111;
-    --wb-bg-card:     #161616;
-    --wb-bg-hover:    rgba(255, 255, 255, 0.04);
-    --wb-bg-active:   rgba(255, 4, 54, 0.12);
-    --wb-text:        #ffffff;
-    --wb-text-2:      rgba(255, 255, 255, 0.55);
-    --wb-text-3:      rgba(255, 255, 255, 0.3);
-    --wb-border:      #1f1f1f;
-    --wb-border-2:    #161616;
+    --wb-bg:          #1a1a1a;
+    --wb-bg-sidebar:  #212121;
+    --wb-bg-card:     #262626;
+    --wb-bg-hover:    #2a2a2a;
+    --wb-bg-active:   rgba(255, 4, 54, 0.14);
+    --wb-text:        #f5f5f5;
+    --wb-text-2:      #a0a0a0;
+    --wb-text-3:      #686868;
+    --wb-border:      #2e2e2e;
+    --wb-border-2:    #2a2a2a;
     --wb-accent:      #FF0436;
     --wb-accent-hover:#cc0329;
   }
@@ -101,9 +101,15 @@ html:not(.dark) .bg-\[#0d1424\],
 html:not(.dark) .bg-\[#0a0a0a\],
 html:not(.dark) .bg-\[#111111\],
 html:not(.dark) .bg-\[#161616\],
-html:not(.dark) .bg-\[#1a1a2e\] { background-color: #ffffff !important; }
+html:not(.dark) .bg-\[#1a1a2e\],
+html:not(.dark) .bg-\[#1a1a1a\],
+html:not(.dark) .bg-\[#212121\],
+html:not(.dark) .bg-\[#242424\],
+html:not(.dark) .bg-\[#262626\],
+html:not(.dark) .bg-\[#2a2a2a\] { background-color: #ffffff !important; }
 
-html:not(.dark) .bg-\[#060b17\]\/95 { background-color: rgba(248,248,248,0.97) !important; }
+html:not(.dark) .bg-\[#060b17\]\/95,
+html:not(.dark) .bg-\[#1a1a1a\]\/95 { background-color: rgba(248,248,248,0.97) !important; }
 html:not(.dark) .bg-\[#060b17\]     { background-color: #f8f8f8 !important; }
 
 /* ── White/X opacity → light grays ── */

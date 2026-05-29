@@ -59,7 +59,7 @@ const PLANS = [
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen bg-[#0a0f1e]">
+    <div className="min-h-screen bg-[#1a1a1a]">
       {/* Header */}
       <header className="border-b border-white/5 px-6 py-4 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">

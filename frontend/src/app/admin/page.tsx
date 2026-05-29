@@ -40,9 +40,9 @@ export default function AdminPage() {
   const { data: revenue = [] } = useQuery({ queryKey: ['admin-revenue'], queryFn: getAdminRevenue, enabled: authorized === true && tab === 'revenue' });
   const { data: errors = [] } = useQuery({ queryKey: ['admin-errors'], queryFn: getAdminErrors, enabled: authorized === true && tab === 'errors', refetchInterval: 60_000 });
 
-  if (authorized === null) return <div className="min-h-screen bg-[#0a0f1e] flex items-center justify-center text-white/30">Loading…</div>;
+  if (authorized === null) return <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center text-white/30">Loading…</div>;
   if (authorized === false) return (
-    <div className="min-h-screen bg-[#0a0f1e] flex items-center justify-center">
+    <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center">
       <div className="text-center">
         <p className="text-6xl mb-4">🚫</p>
         <p className="text-white text-lg font-semibold">Access Denied</p>
@@ -69,7 +69,7 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0f1e]">
+    <div className="min-h-screen bg-[#1a1a1a]">
       {/* Header */}
       <header className="border-b border-white/5 px-6 py-4 flex items-center gap-3">
         <div className="h-7 w-7 rounded-lg bg-green-500/20 flex items-center justify-center">

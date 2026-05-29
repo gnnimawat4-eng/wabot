@@ -204,7 +204,7 @@ function CheckInModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+      <div className="bg-[#262626] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold text-white">Check In — {room.room_number}</h2>
           <button onClick={onClose} className="text-white/40 hover:text-white/70"><X className="h-5 w-5" /></button>
@@ -308,7 +308,7 @@ function ViewBillModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
+      <div className="bg-[#262626] border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="text-lg font-bold text-white">Bill — {room.room_number}</h2>
@@ -426,7 +426,7 @@ function CheckoutModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+      <div className="bg-[#262626] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold text-white">Checkout — {room.room_number}</h2>
           <button onClick={onClose} className="text-white/40 hover:text-white/70"><X className="h-5 w-5" /></button>

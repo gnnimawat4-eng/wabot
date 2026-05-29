@@ -73,7 +73,7 @@ export function OnboardingModal() {
   const prev = () => setStep((s) => Math.max(s - 1, 0));
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#060b17]/95 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-[#1a1a1a]/95 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
       <div className="w-full max-w-2xl py-8">
         <div className="text-center mb-2">
           <span className="text-xs text-white/30 font-medium">Step {step + 1} of {STEPS.length}</span>
