@@ -155,6 +155,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [wsMenuOpen, setWsMenuOpen] = useState<string | null>(null);
   const [deleteConfirmWs, setDeleteConfirmWs] = useState<{ id: string; name: string } | null>(null);
   const [deletingWs, setDeletingWs] = useState(false);
+  // Trial restrictions
+  const [pendingWsSwitch, setPendingWsSwitch] = useState<{ id: string; name: string } | null>(null);
+  const [showTrialLimit, setShowTrialLimit] = useState(false);
+  const [wsCred, setWsCred] = useState({ user: '', pass: '', error: '' });
   const dragging = useRef(false);
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(0);
@@ -283,6 +287,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.push('/login');
   };
 
+  const isTrial = !isAdmin && subscription?.status === 'trial';
+
+  const handleWorkspaceSelect = (ws: (typeof workspaces)[0]) => {
+    if (ws.id === activeWorkspace?.id) return;
+    if (!isTrial) { setWorkspace(ws); return; }
+    setPendingWsSwitch({ id: ws.id, name: ws.name });
+    setWsCred({ user: '', pass: '', error: '' });
+  };
+
+  const handleWsCredSubmit = () => {
+    if (wsCred.user.trim() === 'system' && wsCred.pass === 'manager') {
+      const ws = workspaces.find((w) => w.id === pendingWsSwitch?.id);
+      if (ws) setWorkspace(ws);
+      setPendingWsSwitch(null);
+    } else {
+      setWsCred((p) => ({ ...p, error: 'Invalid credentials' }));
+    }
+  };
+
+  const handleNewWorkspaceClick = () => {
+    if (isTrial && workspaces.length >= 1) { setShowTrialLimit(true); return; }
+    setShowNewWs(true);
+  };
+
   const handleDeleteWorkspace = async () => {
     if (!deleteConfirmWs) return;
     if (deleteConfirmWs.id === activeWorkspace?.id) {
@@ -317,6 +345,83 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <OnboardingModal />
+
+      {/* Trial plan limit modal */}
+      {showTrialLimit && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setShowTrialLimit(false)}>
+          <div className="rounded-xl p-6 max-w-sm w-full shadow-2xl"
+            style={{ background: 'var(--wb-bg-sidebar)', border: '1px solid var(--wb-border)' }}
+            onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm font-semibold mb-2" style={{ color: 'var(--wb-text)' }}>Trial Plan Limit</p>
+            <p className="text-sm mb-5" style={{ color: 'var(--wb-text-3)' }}>
+              Trial plan allows only 1 workspace. Upgrade to create more workspaces.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowTrialLimit(false)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{ border: '1px solid var(--wb-border)', color: 'var(--wb-text-2)' }}>
+                Cancel
+              </button>
+              <Link href="/settings" onClick={() => setShowTrialLimit(false)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium text-center transition-colors"
+                style={{ background: 'var(--wb-accent)', color: '#ffffff' }}>
+                Upgrade Now
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Workspace switch credentials modal (trial users) */}
+      {pendingWsSwitch && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setPendingWsSwitch(null)}>
+          <div className="rounded-xl p-6 max-w-sm w-full shadow-2xl"
+            style={{ background: 'var(--wb-bg-sidebar)', border: '1px solid var(--wb-border)' }}
+            onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm font-semibold mb-1" style={{ color: 'var(--wb-text)' }}>Switch Workspace</p>
+            <p className="text-xs mb-4" style={{ color: 'var(--wb-text-3)' }}>
+              Enter admin credentials to switch workspace
+            </p>
+            <div className="space-y-2">
+              <input
+                autoFocus
+                placeholder="Username"
+                value={wsCred.user}
+                onChange={(e) => setWsCred((p) => ({ ...p, user: e.target.value, error: '' }))}
+                onKeyDown={(e) => e.key === 'Enter' && handleWsCredSubmit()}
+                className="w-full text-sm px-3 py-2 rounded-lg focus:outline-none"
+                style={{ background: 'var(--wb-input)', border: '1px solid var(--wb-input-border)', color: 'var(--wb-text)' }}
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={wsCred.pass}
+                onChange={(e) => setWsCred((p) => ({ ...p, pass: e.target.value, error: '' }))}
+                onKeyDown={(e) => e.key === 'Enter' && handleWsCredSubmit()}
+                className="w-full text-sm px-3 py-2 rounded-lg focus:outline-none"
+                style={{ background: 'var(--wb-input)', border: '1px solid var(--wb-input-border)', color: 'var(--wb-text)' }}
+              />
+              {wsCred.error && <p className="text-xs text-red-400">{wsCred.error}</p>}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setPendingWsSwitch(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{ border: '1px solid var(--wb-border)', color: 'var(--wb-text-2)' }}>
+                Cancel
+              </button>
+              <button onClick={handleWsCredSubmit}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{ background: 'var(--wb-accent)', color: '#ffffff' }}>
+                Unlock
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete workspace confirmation modal */}
       {deleteConfirmWs && (
@@ -393,7 +498,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <div className="space-y-0.5">
                 {workspaces.map((ws) => (
                   <div key={ws.id} className="relative group/ws">
-                    <button onClick={() => setWorkspace(ws)}
+                    <button onClick={() => handleWorkspaceSelect(ws)}
                       className="w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-2 transition-colors pr-7"
                       style={ws.id === activeWorkspace?.id ? { color: 'var(--wb-text)', fontWeight: 600 } : { color: 'var(--wb-text-2)' }}
                       onMouseEnter={(e) => { if (ws.id !== activeWorkspace?.id) e.currentTarget.style.background = 'var(--wb-bg-hover)'; }}
@@ -444,7 +549,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     </button>
                   </div>
                 ) : (
-                  <button onClick={() => setShowNewWs(true)}
+                  <button onClick={handleNewWorkspaceClick}
                     className="w-full text-left px-2 py-1.5 rounded-md text-sm flex items-center gap-1.5 transition-colors"
                     style={{ color: 'var(--wb-text-3)' }}
                     onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--wb-text-2)'; e.currentTarget.style.background = 'var(--wb-bg-hover)'; }}

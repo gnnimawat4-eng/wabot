@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, Check, AlertTriangle, Trash2, RotateCcw, Palette } from 'lucide-react';
+import { Bot, Check, AlertTriangle, Trash2, RotateCcw, Palette, Lock, ShieldCheck } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useWorkspaceStore } from '@/lib/store';
 import { createWorkspace, updateWorkspace, getSubscription, createSubscription, getTrash, restoreTrashItem, permanentDeleteTrashItem } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { BUSINESS_TYPES, type BusinessType } from '@/lib/businessConfig';
 import { useTheme, useAccent, type AccentKey, ACCENT_DEFS, type Theme } from '@/app/providers';
 import { toast } from 'sonner';
@@ -195,6 +196,21 @@ function TrashSection({ workspaceId, onRestore }: { workspaceId: string; onResto
   );
 }
 
+// ── Admin credentials & session unlock ───────────────────────────────────────
+const CRED_USER = 'system';
+const CRED_PASS = 'manager';
+const ADMIN_EMAIL_SETTINGS = 'gnnimawat4@gmail.com';
+const PROTECTED_SECTIONS: Section[] = ['workspace', 'whatsapp', 'billing'];
+const UNLOCK_KEY = 'wabot_admin_ts';
+const UNLOCK_MS  = 30 * 60 * 1000; // 30 min
+
+const isUnlocked = () => {
+  if (typeof window === 'undefined') return false;
+  const ts = sessionStorage.getItem(UNLOCK_KEY);
+  return !!ts && (Date.now() - Number(ts)) < UNLOCK_MS;
+};
+const markUnlocked = () => sessionStorage.setItem(UNLOCK_KEY, String(Date.now()));
+
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'workspace', label: 'Workspace Settings' },
   { id: 'whatsapp',  label: 'WhatsApp Connection' },
@@ -209,6 +225,15 @@ export default function SettingsPage() {
   const { accent, setAccent } = useAccent();
   const [section, setSection] = useState<Section>('workspace');
 
+  // ── Admin gate ──────────────────────────────────────────────────────────────
+  const [userEmail, setUserEmail] = useState('');
+  const [pendingSection, setPendingSection] = useState<Section | null>(null);
+  const [credUser, setCredUser] = useState('');
+  const [credPass, setCredPass] = useState('');
+  const [credError, setCredError] = useState('');
+
+  const isAdminUser = userEmail === ADMIN_EMAIL_SETTINGS;
+
   const [wsName, setWsName] = useState('');
   const [waForm, setWaForm] = useState({ wa_phone_number_id: '', wa_phone_number: '', wa_access_token: '', wa_business_id: '' });
   const [businessType, setBusinessType] = useState<BusinessType | null>(null);
@@ -218,6 +243,12 @@ export default function SettingsPage() {
   const [aiLang, setAiLang] = useState('auto');
   const [aiSaved, setAiSaved] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('');
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setUserEmail(user.email || '');
+    });
+  }, []);
 
   useEffect(() => {
     if (activeWorkspace) {
@@ -300,6 +331,29 @@ export default function SettingsPage() {
     ? (trash.workspaces?.length ?? 0) + (trash.contacts?.length ?? 0) + (trash.flows?.length ?? 0) + (trash.broadcasts?.length ?? 0)
     : 0;
 
+  const isTrial = sub?.status === 'trial' && !isAdminUser;
+
+  const handleSectionClick = (target: Section) => {
+    if (isAdminUser || !PROTECTED_SECTIONS.includes(target) || isUnlocked()) {
+      setSection(target);
+      return;
+    }
+    setCredUser('');
+    setCredPass('');
+    setCredError('');
+    setPendingSection(target);
+  };
+
+  const handleCredUnlock = () => {
+    if (credUser.trim() === CRED_USER && credPass === CRED_PASS) {
+      markUnlocked();
+      setSection(pendingSection!);
+      setPendingSection(null);
+    } else {
+      setCredError('Invalid credentials');
+    }
+  };
+
   const handleUpgrade = async (plan: string) => {
     if (!activeWorkspace) return;
     try {
@@ -340,16 +394,19 @@ export default function SettingsPage() {
         <div className="w-52 shrink-0 p-4 flex flex-col gap-1 border-r" style={{ borderColor: 'var(--wb-border)' }}>
           <p className="text-xs font-semibold uppercase tracking-wider px-3 mb-2" style={{ color: 'var(--wb-text-3)' }}>Settings</p>
           {SECTIONS.map((sec) => (
-            <button key={sec.id} onClick={() => setSection(sec.id)}
-              className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors"
+            <button key={sec.id} onClick={() => handleSectionClick(sec.id)}
+              className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between"
               style={section === sec.id ? { background: 'var(--wb-bg-active)', color: 'var(--wb-accent)', fontWeight: 600 } : { color: 'var(--wb-text-2)' }}
               onMouseEnter={(e) => { if (section !== sec.id) e.currentTarget.style.background = 'var(--wb-bg-hover)'; }}
               onMouseLeave={(e) => { if (section !== sec.id) e.currentTarget.style.background = 'transparent'; }}>
-              {sec.label}
+              <span>{sec.label}</span>
+              {PROTECTED_SECTIONS.includes(sec.id) && !isAdminUser && (
+                <Lock className="h-3 w-3 opacity-40 shrink-0" />
+              )}
             </button>
           ))}
           {/* Recently Deleted */}
-          <button onClick={() => setSection('trash')}
+          <button onClick={() => handleSectionClick('trash')}
             className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between"
             style={section === 'trash' ? { background: 'var(--wb-bg-active)', color: 'var(--wb-accent)', fontWeight: 600 } : { color: 'var(--wb-text-2)' }}
             onMouseEnter={(e) => { if (section !== 'trash') e.currentTarget.style.background = 'var(--wb-bg-hover)'; }}
@@ -434,6 +491,13 @@ export default function SettingsPage() {
                 <h2 className="text-base font-semibold mb-1" style={{ color: 'var(--wb-text)' }}>Workspace Settings</h2>
                 <p className="text-sm" style={{ color: 'var(--wb-text-3)' }}>Update your workspace name and business type</p>
               </div>
+              {isTrial && (
+                <div className="flex items-center gap-2 rounded-lg px-3 py-2.5"
+                  style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                  <Lock className="h-4 w-4 text-red-400 shrink-0" />
+                  <p className="text-xs text-red-400">Upgrade your plan to edit workspace settings</p>
+                </div>
+              )}
               <div className="space-y-4">
                 <Field label="Workspace Name">
                   <input className={inp} style={inpStyle} placeholder="e.g. Raj's Hotel" value={wsName} onChange={(e) => setWsName(e.target.value)} />
@@ -444,7 +508,7 @@ export default function SettingsPage() {
                   </Field>
                 )}
                 <Button className="bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
-                  onClick={() => saveWorkspaceName.mutate()} disabled={saveWorkspaceName.isPending || !wsName.trim()}>
+                  onClick={() => saveWorkspaceName.mutate()} disabled={saveWorkspaceName.isPending || !wsName.trim() || isTrial}>
                   {saveWorkspaceName.isPending ? 'Saving…' : 'Save'}
                 </Button>
               </div>
@@ -475,7 +539,7 @@ export default function SettingsPage() {
                       </div>
                     )}
                     <Button className="mt-3 bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
-                      onClick={() => saveBusinessType.mutate()} disabled={saveBusinessType.isPending || !btChanged || !businessType}>
+                      onClick={() => saveBusinessType.mutate()} disabled={saveBusinessType.isPending || !btChanged || !businessType || isTrial}>
                       {saveBusinessType.isPending ? 'Saving…' : 'Save Business Type'}
                     </Button>
                   </div>
@@ -633,6 +697,59 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* ── Admin credentials modal ─────────────────────────────────────────── */}
+      {pendingSection && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.7)' }}
+          onClick={() => setPendingSection(null)}>
+          <div className="rounded-xl p-6 max-w-sm w-full shadow-2xl"
+            style={{ background: 'var(--wb-bg-sidebar)', border: '1px solid var(--wb-border)' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0"
+                style={{ background: 'var(--wb-bg-active)' }}>
+                <ShieldCheck className="h-4 w-4" style={{ color: 'var(--wb-accent)' }} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: 'var(--wb-text)' }}>Admin Access Required</p>
+                <p className="text-xs" style={{ color: 'var(--wb-text-3)' }}>Enter credentials to continue</p>
+              </div>
+            </div>
+            <div className="space-y-2.5">
+              <input
+                className={inp} style={inpStyle}
+                placeholder="Username"
+                value={credUser}
+                autoFocus
+                onChange={(e) => { setCredUser(e.target.value); setCredError(''); }}
+                onKeyDown={(e) => e.key === 'Enter' && handleCredUnlock()}
+              />
+              <input
+                className={inp} style={inpStyle}
+                type="password"
+                placeholder="Password"
+                value={credPass}
+                onChange={(e) => { setCredPass(e.target.value); setCredError(''); }}
+                onKeyDown={(e) => e.key === 'Enter' && handleCredUnlock()}
+              />
+              {credError && <p className="text-xs text-red-400">{credError}</p>}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setPendingSection(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{ border: '1px solid var(--wb-border)', color: 'var(--wb-text-2)' }}>
+                Cancel
+              </button>
+              <button onClick={handleCredUnlock}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{ background: 'var(--wb-accent)', color: '#ffffff' }}>
+                Unlock
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
