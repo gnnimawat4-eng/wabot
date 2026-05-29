@@ -99,6 +99,62 @@ module.exports = async function flowRoutes(fastify) {
     return reply.code(204).send();
   });
 
+  // AI flow generation
+  fastify.post('/:workspaceId/ai-generate-flows', auth, async (req, reply) => {
+    const { workspaceId } = req.params;
+    const { description } = req.body || {};
+
+    if (!description?.trim()) return reply.code(400).send({ error: 'Description is required' });
+    if (!process.env.GROQ_API_KEY) return reply.code(503).send({ error: 'AI not configured — set GROQ_API_KEY on the server' });
+
+    const Groq = require('groq-sdk');
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+    const systemPrompt = `You are a WhatsApp automation expert. Based on the business description, generate a list of WhatsApp flows in JSON format.
+
+Each flow must have:
+- name: flow name
+- trigger_keywords: comma separated keywords that trigger this flow
+- message: the complete WhatsApp message to send (with emojis, friendly tone)
+
+Generate 3-5 relevant flows for this business. Make the messages natural, helpful, and in the business's language style.
+
+Return ONLY a valid JSON array, no explanation, no markdown:
+[
+  {
+    "name": "Flow name",
+    "trigger_keywords": "keyword1, keyword2, keyword3",
+    "message": "The complete WhatsApp message with emojis"
+  }
+]`;
+
+    try {
+      const completion = await groq.chat.completions.create({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: description.trim() },
+        ],
+        model: 'llama-3.1-8b-instant',
+        max_tokens: 2000,
+        temperature: 0.7,
+      });
+
+      const text = completion.choices[0]?.message?.content || '[]';
+
+      // Extract JSON array from response (handle markdown code blocks too)
+      const match = text.match(/\[[\s\S]*\]/);
+      if (!match) return reply.code(500).send({ error: 'AI returned an unexpected format. Please try again.' });
+
+      const flows = JSON.parse(match[0]);
+      if (!Array.isArray(flows)) return reply.code(500).send({ error: 'Invalid response format from AI' });
+
+      return flows;
+    } catch (err) {
+      console.error('AI flow generation error:', err?.message);
+      return reply.code(500).send({ error: err?.message || 'AI generation failed' });
+    }
+  });
+
   fastify.put('/:workspaceId/flows/:flowId/steps', auth, async (req) => {
     const { workspaceId, flowId } = req.params;
     const { steps } = req.body;

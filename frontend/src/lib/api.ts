@@ -56,6 +56,8 @@ export const deleteFlow = (workspaceId: string, flowId: string) =>
   api.delete(`/workspaces/${workspaceId}/flows/${flowId}`);
 export const updateFlowSteps = (workspaceId: string, flowId: string, steps: unknown[]) =>
   api.put(`/workspaces/${workspaceId}/flows/${flowId}/steps`, { steps }).then((r) => r.data);
+export const aiGenerateFlows = (workspaceId: string, description: string) =>
+  api.post(`/workspaces/${workspaceId}/ai-generate-flows`, { description }).then((r) => r.data);
 
 // Broadcasts
 export const getBroadcasts = (workspaceId: string) =>
