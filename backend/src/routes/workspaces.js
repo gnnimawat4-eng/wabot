@@ -211,6 +211,96 @@ module.exports = async function workspaceRoutes(fastify) {
     return reply.code(204).send();
   });
 
+  // ── Analytics (full dashboard data) ────────────────────────────────────
+  fastify.get('/:id/analytics', auth, async (req) => {
+    const { id } = req.params;
+
+    const now = new Date();
+    const som  = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const solm = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+    const d30  = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [
+      mThisM, mLastM,
+      arThisM, arLastM,
+      allContacts,
+      frThisM, frLastM,
+      msgs30d,
+      recent,
+      runs30d,
+    ] = await Promise.all([
+      supabase.from('messages').select('*', { count: 'exact', head: true }).eq('workspace_id', id).gte('created_at', som),
+      supabase.from('messages').select('*', { count: 'exact', head: true }).eq('workspace_id', id).gte('created_at', solm).lt('created_at', som),
+      supabase.from('messages').select('*', { count: 'exact', head: true }).eq('workspace_id', id).eq('direction', 'outbound').gte('created_at', som),
+      supabase.from('messages').select('*', { count: 'exact', head: true }).eq('workspace_id', id).eq('direction', 'outbound').gte('created_at', solm).lt('created_at', som),
+      supabase.from('contacts').select('*', { count: 'exact', head: true }).eq('workspace_id', id).is('deleted_at', null),
+      supabase.from('flow_runs').select('*', { count: 'exact', head: true }).eq('workspace_id', id).gte('started_at', som),
+      supabase.from('flow_runs').select('*', { count: 'exact', head: true }).eq('workspace_id', id).gte('started_at', solm).lt('started_at', som),
+      supabase.from('messages').select('created_at').eq('workspace_id', id).gte('created_at', d30).order('created_at'),
+      supabase.from('messages').select('body, direction, created_at, contacts(name, phone)').eq('workspace_id', id).eq('direction', 'inbound').order('created_at', { ascending: false }).limit(10),
+      supabase.from('flow_runs').select('flow_id, flows(name)').eq('workspace_id', id).gte('started_at', d30),
+    ]);
+
+    // Messages over time — fill all 30 days so chart has no gaps
+    const dayMap = {};
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 86400000);
+      dayMap[`${d.getMonth() + 1}/${d.getDate()}`] = 0;
+    }
+    for (const m of msgs30d.data || []) {
+      const d = new Date(m.created_at);
+      const k = `${d.getMonth() + 1}/${d.getDate()}`;
+      if (k in dayMap) dayMap[k]++;
+    }
+    const messages_over_time = Object.entries(dayMap).map(([date, count]) => ({ date, count }));
+
+    // Peak hours
+    const hourMap = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0 }));
+    for (const m of msgs30d.data || []) {
+      hourMap[new Date(m.created_at).getHours()].count++;
+    }
+
+    // Top flows
+    const flowCount = {};
+    const flowName  = {};
+    for (const r of runs30d.data || []) {
+      if (!r.flow_id) continue;
+      flowCount[r.flow_id] = (flowCount[r.flow_id] || 0) + 1;
+      if (r.flows?.name) flowName[r.flow_id] = r.flows.name;
+    }
+    const top_flows = Object.entries(flowCount)
+      .map(([fid, count]) => ({ name: flowName[fid] || 'Unnamed', count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+
+    const pct = (curr, prev) => {
+      const c = curr || 0, p = prev || 0;
+      return p === 0 ? (c > 0 ? 100 : 0) : Math.round(((c - p) / p) * 100);
+    };
+
+    return {
+      stats: {
+        messages_this_month:   mThisM.count  || 0,
+        messages_pct:          pct(mThisM.count,  mLastM.count),
+        auto_replies_this_month: arThisM.count || 0,
+        auto_replies_pct:      pct(arThisM.count, arLastM.count),
+        active_contacts:       allContacts.count || 0,
+        flows_triggered:       frThisM.count || 0,
+        flows_triggered_pct:   pct(frThisM.count, frLastM.count),
+      },
+      messages_over_time,
+      top_flows,
+      peak_hours: hourMap,
+      recent_activity: (recent.data || []).map((m) => ({
+        body:          m.body,
+        direction:     m.direction,
+        created_at:    m.created_at,
+        contact_name:  m.contacts?.name  || 'Unknown',
+        contact_phone: m.contacts?.phone || '',
+      })),
+    };
+  });
+
   fastify.get('/:id/stats', auth, async (req) => {
     const { id } = req.params;
     const { data, error } = await supabase.rpc('get_workspace_stats', { ws_id: id });

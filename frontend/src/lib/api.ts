@@ -68,6 +68,10 @@ export const updateFlowSteps = (workspaceId: string, flowId: string, steps: unkn
 export const aiGenerateFlows = (workspaceId: string, description: string) =>
   api.post(`/workspaces/${workspaceId}/ai-generate-flows`, { description }).then((r) => r.data);
 
+// Analytics
+export const getWorkspaceAnalytics = (id: string) =>
+  api.get(`/workspaces/${id}/analytics`).then((r) => r.data);
+
 // Broadcasts
 export const getBroadcasts = (workspaceId: string) =>
   api.get(`/workspaces/${workspaceId}/broadcasts`).then((r) => r.data);
@@ -75,6 +79,10 @@ export const createBroadcast = (workspaceId: string, data: Record<string, unknow
   api.post(`/workspaces/${workspaceId}/broadcasts`, data).then((r) => r.data);
 export const getBroadcast = (workspaceId: string, broadcastId: string) =>
   api.get(`/workspaces/${workspaceId}/broadcasts/${broadcastId}`).then((r) => r.data);
+export const cancelBroadcast = (workspaceId: string, broadcastId: string) =>
+  api.patch(`/workspaces/${workspaceId}/broadcasts/${broadcastId}/cancel`).then((r) => r.data);
+export const deleteBroadcast = (workspaceId: string, broadcastId: string) =>
+  api.delete(`/workspaces/${workspaceId}/broadcasts/${broadcastId}`);
 
 // Locations (tables / rooms)
 export const getLocations = (workspaceId: string) =>
