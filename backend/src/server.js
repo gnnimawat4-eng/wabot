@@ -50,6 +50,7 @@ app.register(require('./routes/hotelRooms'), { prefix: '/workspaces' });
 app.register(require('./routes/businessData'), { prefix: '/workspaces' });
 app.register(require('./routes/billing'), { prefix: '/billing' });
 app.register(require('./routes/admin'), { prefix: '/admin' });
+app.register(require('./routes/ai'),    { prefix: '/ai' });
 
 // Daily cron: hard-delete items soft-deleted more than 30 days ago
 const { supabase: supabaseAdmin } = require('./services/supabase');
