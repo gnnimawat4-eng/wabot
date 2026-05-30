@@ -65,8 +65,8 @@ export const deleteFlow = (workspaceId: string, flowId: string) =>
   api.delete(`/workspaces/${workspaceId}/flows/${flowId}`);
 export const updateFlowSteps = (workspaceId: string, flowId: string, steps: unknown[]) =>
   api.put(`/workspaces/${workspaceId}/flows/${flowId}/steps`, { steps }).then((r) => r.data);
-export const aiGenerateFlows = (workspaceId: string, description: string) =>
-  api.post(`/workspaces/${workspaceId}/ai-generate-flows`, { description }).then((r) => r.data);
+export const aiGenerateFlows = (workspaceId: string, description: string, business_type?: string) =>
+  api.post(`/workspaces/${workspaceId}/ai-generate-flows`, { description, business_type }).then((r) => r.data);
 
 // Analytics
 export const getWorkspaceAnalytics = (id: string) =>

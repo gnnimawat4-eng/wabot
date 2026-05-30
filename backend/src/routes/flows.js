@@ -96,10 +96,10 @@ module.exports = async function flowRoutes(fastify) {
     return reply.code(204).send();
   });
 
-  // AI flow generation
+  // AI flow generation — generates + creates all flows in one call
   fastify.post('/:workspaceId/ai-generate-flows', auth, async (req, reply) => {
     const { workspaceId } = req.params;
-    const { description } = req.body || {};
+    const { description, business_type } = req.body || {};
 
     if (!description?.trim()) return reply.code(400).send({ error: 'Description is required' });
     if (!process.env.GROQ_API_KEY) return reply.code(503).send({ error: 'AI not configured — set GROQ_API_KEY on the server' });
@@ -107,21 +107,41 @@ module.exports = async function flowRoutes(fastify) {
     const Groq = require('groq-sdk');
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-    const systemPrompt = `You are a WhatsApp automation expert. Based on the business description, generate a list of WhatsApp flows in JSON format.
+    const systemPrompt = `You are a WhatsApp chatbot flow builder. Create simple, SHORT flows.
+Rules:
+- First message must be a welcome with numbered menu MAX 4 options
+- Each option leads to ONE short reply (max 2 lines)
+- NO long paragraphs
+- NO asking for more info
+- Keep every message under 100 words
+- Return ONLY JSON, no explanation`;
 
-Each flow must have:
+    const userPrompt = `Business: ${description.trim()}
+Type: ${business_type || 'general'}
+
+Create a flow JSON array. Each flow has:
 - name: flow name
-- trigger_keywords: comma separated keywords that trigger this flow
-- message: the complete WhatsApp message to send (with emojis, friendly tone)
+- trigger: comma separated keywords
+- steps: array of message steps
 
-Generate 3-5 relevant flows for this business. Make the messages natural, helpful, and in the business's language style.
+Create these flows:
+1. Main Menu (trigger: hi,hello,hey) - welcome + numbered menu
+2. Option 1 response flow (trigger: 1)
+3. Option 2 response flow (trigger: 2)
+4. Option 3 response flow (trigger: 3)
+5. Option 4 response flow (trigger: 4)
 
-Return ONLY a valid JSON array, no explanation, no markdown:
+JSON format:
 [
   {
-    "name": "Flow name",
-    "trigger_keywords": "keyword1, keyword2, keyword3",
-    "message": "The complete WhatsApp message with emojis"
+    "name": "Main Menu",
+    "trigger": "hi,hello,hey",
+    "steps": [{ "type": "send_message", "config": { "message": "short welcome + menu" } }]
+  },
+  {
+    "name": "Option 1",
+    "trigger": "1",
+    "steps": [{ "type": "send_message", "config": { "message": "short reply" } }]
   }
 ]`;
 
@@ -129,21 +149,59 @@ Return ONLY a valid JSON array, no explanation, no markdown:
       const completion = await groq.chat.completions.create({
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: description.trim() },
+          { role: 'user', content: userPrompt },
         ],
-        model: 'llama-3.1-8b-instant',
+        model: 'llama-3.3-70b-versatile',
         max_tokens: 2000,
-        temperature: 0.7,
+        temperature: 0.6,
       });
 
       const text = completion.choices[0]?.message?.content || '[]';
       const match = text.match(/\[[\s\S]*\]/);
-      if (!match) return reply.code(500).send({ error: 'AI returned an unexpected format. Please try again.' });
+      if (!match) return reply.code(500).send({ error: 'AI returned unexpected format. Please try again.' });
 
-      const flows = JSON.parse(match[0]);
-      if (!Array.isArray(flows)) return reply.code(500).send({ error: 'Invalid response format from AI' });
+      let aiFlows;
+      try {
+        aiFlows = JSON.parse(match[0]);
+      } catch {
+        return reply.code(500).send({ error: 'Failed to parse AI response. Please try again.' });
+      }
+      if (!Array.isArray(aiFlows) || !aiFlows.length) {
+        return reply.code(500).send({ error: 'AI returned empty flows. Please try again.' });
+      }
 
-      return flows;
+      // Create all flows in DB with is_active: true
+      const created = [];
+      for (const f of aiFlows) {
+        if (!f.name || !f.trigger) continue;
+
+        const steps = (f.steps || []).map((s) => ({
+          type: s.type === 'message' ? 'send_message' : (s.type || 'send_message'),
+          config: s.config || {},
+        }));
+
+        const { data: flow, error: flowErr } = await supabase
+          .from('flows')
+          .insert({
+            workspace_id: workspaceId,
+            name: f.name,
+            ...triggerToDb({ type: 'keyword', keyword: f.trigger }),
+            is_active: true,
+          })
+          .select()
+          .single();
+
+        if (flowErr) { console.error('Flow create error:', flowErr.message); continue; }
+
+        if (steps.length) {
+          const rows = steps.map((s, i) => toStepRow(s, i, flow.id, workspaceId));
+          await supabase.from('flow_steps').insert(rows);
+        }
+
+        created.push({ id: flow.id, name: flow.name, trigger: f.trigger });
+      }
+
+      return { created: created.length, flows: created };
     } catch (err) {
       console.error('AI flow generation error:', err?.message);
       return reply.code(500).send({ error: err?.message || 'AI generation failed' });

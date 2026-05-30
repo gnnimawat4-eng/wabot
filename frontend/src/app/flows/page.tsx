@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Power, Trash2, ChevronRight, Zap, AlertCircle, Sparkles, Check, X, Loader2 } from 'lucide-react';
+import { Plus, Power, Trash2, ChevronRight, Zap, AlertCircle, Sparkles, Check, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
@@ -26,10 +26,9 @@ type StepConfig = Record<string, unknown> & {
 type Step = { type: string; config: StepConfig };
 type Flow = { id: string; name: string; trigger: Record<string, string>; is_active: boolean; created_at: string; flow_steps: Step[] };
 
-interface AIFlow {
-  name: string;
-  trigger_keywords: string;
-  message: string;
+interface AIResult {
+  created: number;
+  flows: { id: string; name: string; trigger: string }[];
 }
 
 // ── Manual flow dialog (existing) ─────────────────────────────────────────────
@@ -143,18 +142,19 @@ function FlowDialog({ open, onClose, workspaceId }: { open: boolean; onClose: ()
 
 // ── AI Generate Modal ──────────────────────────────────────────────────────────
 
-function AIGenerateModal({ open, onClose, workspaceId }: { open: boolean; onClose: () => void; workspaceId: string }) {
+function AIGenerateModal({
+  open, onClose, workspaceId, businessType,
+}: {
+  open: boolean; onClose: () => void; workspaceId: string; businessType?: string;
+}) {
   const qc = useQueryClient();
   const [description, setDescription] = useState('');
-  const [step, setStep] = useState<'input' | 'loading' | 'preview'>('input');
-  const [generatedFlows, setGeneratedFlows] = useState<AIFlow[]>([]);
-  const [selected, setSelected] = useState<boolean[]>([]);
+  const [step, setStep] = useState<'input' | 'loading'>('input');
 
   const handleClose = () => {
+    if (step === 'loading') return; // don't close while generating
     setStep('input');
     setDescription('');
-    setGeneratedFlows([]);
-    setSelected([]);
     onClose();
   };
 
@@ -162,46 +162,25 @@ function AIGenerateModal({ open, onClose, workspaceId }: { open: boolean; onClos
     if (!description.trim()) { toast.error('Please describe your business first'); return; }
     setStep('loading');
     try {
-      const flows: AIFlow[] = await aiGenerateFlows(workspaceId, description.trim());
-      if (!flows?.length) throw new Error('No flows generated');
-      setGeneratedFlows(flows);
-      setSelected(flows.map(() => true));
-      setStep('preview');
+      const result: AIResult = await aiGenerateFlows(workspaceId, description.trim(), businessType);
+      qc.invalidateQueries({ queryKey: ['flows', workspaceId] });
+      toast.success(`${result.created} flows created! All are active — test them now.`);
+      setStep('input');
+      setDescription('');
+      onClose();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-        || (err as Error)?.message || 'AI generation failed';
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        (err as Error)?.message ||
+        'AI generation failed';
       toast.error(msg);
       setStep('input');
     }
   };
 
-  const createSelected = useMutation({
-    mutationFn: async () => {
-      const toCreate = generatedFlows.filter((_, i) => selected[i]);
-      await Promise.all(
-        toCreate.map((f) =>
-          createFlow(workspaceId, {
-            name: f.name,
-            trigger: { type: 'keyword', keyword: f.trigger_keywords },
-            steps: [{ type: 'send_message', config: { message: f.message } }],
-          })
-        )
-      );
-      return toCreate.length;
-    },
-    onSuccess: (count) => {
-      qc.invalidateQueries({ queryKey: ['flows', workspaceId] });
-      toast.success(`${count} flow${count !== 1 ? 's' : ''} created! Review and activate them.`);
-      handleClose();
-    },
-    onError: () => toast.error('Failed to create some flows'),
-  });
-
-  const selectedCount = selected.filter(Boolean).length;
-
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto bg-[#252525] border-white/10 text-white">
+      <DialogContent className="max-w-xl bg-[#252525] border-white/10 text-white">
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-yellow-400" />
@@ -209,7 +188,6 @@ function AIGenerateModal({ open, onClose, workspaceId }: { open: boolean; onClos
           </DialogTitle>
         </DialogHeader>
 
-        {/* ── Step 1: Input ── */}
         {step === 'input' && (
           <div className="space-y-4 mt-2">
             <div>
@@ -219,104 +197,31 @@ function AIGenerateModal({ open, onClose, workspaceId }: { open: boolean; onClos
                 rows={6}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder={`Example: I run a hotel in Delhi. Check-in at 2 PM, check-out at 12 PM. We have a restaurant, spa and gym. Room service available 24/7. We have deluxe rooms starting from ₹3,500 per night.`}
+                placeholder={`Example: I run a hotel in Delhi. Check-in at 2 PM, checkout at 12 PM. We have restaurant, spa and gym. Room service 24/7. Deluxe rooms from ₹3,500/night.`}
                 className="w-full rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-green-500/50 leading-relaxed"
                 style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#ffffff' }}
                 onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) generate(); }}
               />
-              <p className="text-xs text-white/30 mt-1.5">Include: business type, timings, services, pricing. More detail = better flows.</p>
+              <p className="text-xs text-white/30 mt-1.5">
+                AI will create 5 flows: Main Menu + 4 option replies. All activated immediately.
+              </p>
             </div>
             <Button onClick={generate} disabled={!description.trim()}
               className="w-full bg-green-600 hover:bg-green-700 text-white h-11 text-sm font-semibold">
-              <Sparkles className="h-4 w-4 mr-2" />Generate Flows
+              <Sparkles className="h-4 w-4 mr-2" />Generate 5 Flows
             </Button>
           </div>
         )}
 
-        {/* ── Loading ── */}
         {step === 'loading' && (
-          <div className="flex flex-col items-center justify-center py-12 gap-4">
+          <div className="flex flex-col items-center justify-center py-14 gap-4">
             <div className="relative">
               <Loader2 className="h-10 w-10 text-green-400 animate-spin" />
               <Sparkles className="h-4 w-4 text-yellow-400 absolute -top-1 -right-1" />
             </div>
             <div className="text-center">
-              <p className="text-base font-semibold text-white">AI is creating your flows…</p>
-              <p className="text-sm text-white/40 mt-1">Analyzing your business and generating tailored flows</p>
-            </div>
-          </div>
-        )}
-
-        {/* ── Preview ── */}
-        {step === 'preview' && (
-          <div className="space-y-4 mt-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">
-                AI generated <span className="text-green-400">{generatedFlows.length} flows</span> for you
-              </p>
-              <button onClick={() => setStep('input')} className="text-xs text-white/40 hover:text-white/60 underline">
-                ← Change description
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {generatedFlows.map((flow, i) => (
-                <div key={i}
-                  className={`rounded-xl p-4 border transition-all cursor-pointer ${selected[i] ? 'border-green-500/40 bg-green-500/5' : 'border-white/8 bg-white/3 opacity-50'}`}
-                  onClick={() => { const n = [...selected]; n[i] = !n[i]; setSelected(n); }}>
-                  <div className="flex items-start gap-3">
-                    {/* Checkbox */}
-                    <div className={`mt-0.5 h-5 w-5 rounded flex items-center justify-center shrink-0 transition-colors ${selected[i] ? 'bg-green-500' : 'border border-white/20'}`}>
-                      {selected[i] && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      {/* Flow name */}
-                      <p className="text-sm font-semibold text-white mb-1">{flow.name}</p>
-                      {/* Triggers */}
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {flow.trigger_keywords.split(',').map((kw) => kw.trim()).filter(Boolean).map((kw) => (
-                          <span key={kw} className="text-xs px-2 py-0.5 rounded-full"
-                            style={{ background: 'var(--wb-bg-active)', color: 'var(--wb-accent)' }}>
-                            {kw}
-                          </span>
-                        ))}
-                      </div>
-                      {/* Message preview */}
-                      <div className="rounded-lg px-3 py-2 text-xs leading-relaxed"
-                        style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.7)' }}>
-                        <p className="line-clamp-3 whitespace-pre-line">{flow.message}</p>
-                      </div>
-                    </div>
-                    {/* Toggle button */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); const n = [...selected]; n[i] = !n[i]; setSelected(n); }}
-                      className={`shrink-0 p-1.5 rounded-full transition-colors ${selected[i] ? 'text-red-400 hover:bg-red-500/10' : 'text-green-400 hover:bg-green-500/10'}`}>
-                      {selected[i] ? <X className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-3 pt-1">
-              <Button variant="outline" onClick={handleClose}
-                className="border-white/10 text-white/60 hover:bg-white/5">
-                Cancel
-              </Button>
-              <Button
-                onClick={() => createSelected.mutate()}
-                disabled={createSelected.isPending || selectedCount === 0}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold"
-              >
-                {createSelected.isPending ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating…</>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4 mr-2" />
-                    Create {selectedCount} Selected Flow{selectedCount !== 1 ? 's' : ''}
-                  </>
-                )}
-              </Button>
+              <p className="text-base font-semibold text-white">Generating & creating flows…</p>
+              <p className="text-sm text-white/40 mt-1">AI is writing messages and saving to your account</p>
             </div>
           </div>
         )}
@@ -448,7 +353,7 @@ export default function FlowsPage() {
       </div>
 
       <FlowDialog open={dialogOpen} onClose={() => setDialogOpen(false)} workspaceId={activeWorkspace?.id ?? ''} />
-      <AIGenerateModal open={aiModalOpen} onClose={() => setAiModalOpen(false)} workspaceId={activeWorkspace?.id ?? ''} />
+      <AIGenerateModal open={aiModalOpen} onClose={() => setAiModalOpen(false)} workspaceId={activeWorkspace?.id ?? ''} businessType={activeWorkspace?.business_type ?? undefined} />
     </AppShell>
   );
 }
