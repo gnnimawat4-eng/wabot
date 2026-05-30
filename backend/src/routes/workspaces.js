@@ -219,39 +219,65 @@ module.exports = async function workspaceRoutes(fastify) {
     return data || null;
   });
 
-  // Create or update (upsert by workspace_id)
+  // Create or update — explicit check avoids needing a UNIQUE constraint for upsert
   fastify.post('/:id/smart-menu', auth, async (req, reply) => {
     const { id } = req.params;
     const { business_name, languages, options } = req.body || {};
     if (!business_name?.trim()) return reply.code(400).send({ error: 'business_name is required' });
 
-    const { data, error } = await supabase
-      .from('smart_menus')
-      .upsert({
+    try {
+      const payload = {
         workspace_id:  id,
         business_name: business_name.trim(),
-        languages:     languages || ['hindi', 'english', 'hinglish'],
+        languages:     languages || ['english', 'hindi', 'hinglish'],
         options:       options   || [],
         is_active:     true,
         updated_at:    new Date().toISOString(),
-      }, { onConflict: 'workspace_id' })
-      .select()
-      .single();
-    if (error) throw error;
-    return reply.code(201).send(data);
+      };
+
+      // Check if a record already exists for this workspace
+      const { data: existing } = await supabase
+        .from('smart_menus').select('id').eq('workspace_id', id).maybeSingle();
+
+      let data, error;
+      if (existing?.id) {
+        ({ data, error } = await supabase
+          .from('smart_menus').update(payload).eq('workspace_id', id).select().single());
+      } else {
+        ({ data, error } = await supabase
+          .from('smart_menus').insert(payload).select().single());
+      }
+
+      if (error) {
+        console.error('Smart menu save error:', JSON.stringify(error));
+        return reply.code(500).send({ error: error.message || 'Failed to save smart menu' });
+      }
+      return reply.code(201).send(data);
+    } catch (err) {
+      console.error('Smart menu save exception:', err?.message);
+      return reply.code(500).send({ error: err?.message || 'Failed to save smart menu' });
+    }
   });
 
-  // Update specific fields (e.g. a single option reply)
+  // Partial update (e.g. one option reply edited inline)
   fastify.patch('/:id/smart-menu', auth, async (req, reply) => {
     const { id } = req.params;
-    const body = req.body || {};
-    const allowed = ['business_name','languages','options','is_active'];
-    const updates = Object.fromEntries(Object.entries(body).filter(([k]) => allowed.includes(k)));
-    updates.updated_at = new Date().toISOString();
-    const { data, error } = await supabase
-      .from('smart_menus').update(updates).eq('workspace_id', id).select().single();
-    if (error) throw error;
-    return data;
+    try {
+      const body = req.body || {};
+      const allowed = ['business_name', 'languages', 'options', 'is_active'];
+      const updates = Object.fromEntries(Object.entries(body).filter(([k]) => allowed.includes(k)));
+      updates.updated_at = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('smart_menus').update(updates).eq('workspace_id', id).select().single();
+      if (error) {
+        console.error('Smart menu patch error:', JSON.stringify(error));
+        return reply.code(500).send({ error: error.message || 'Failed to update smart menu' });
+      }
+      return data;
+    } catch (err) {
+      console.error('Smart menu patch exception:', err?.message);
+      return reply.code(500).send({ error: err?.message || 'Failed to update smart menu' });
+    }
   });
 
   fastify.delete('/:id/smart-menu', auth, async (req, reply) => {

@@ -478,45 +478,68 @@ function SmartMenuSetup({ workspaceId, workspaceName, businessType, onSaved }: {
         </div>
       )}
 
-      {/* Step 2: Option labels */}
+      {/* Step 2: Option labels — dynamic, 2-9 options */}
       {step === 2 && (
-        <div className="space-y-4">
-          <p className="text-sm text-white/60">Edit the 4 menu option labels your customers will see:</p>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm" style={{ color: 'var(--wb-text-3)' }}>
+              Edit the menu option labels customers will see ({form.options.length}/9)
+            </p>
+          </div>
           {form.options.map((opt, i) => (
-            <div key={i}>
-              <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--wb-text-2)' }}>
-                {i+1}️⃣ Option {i+1}
-              </label>
-              <input className={inp} style={inpS} value={opt.labelEn}
+            <div key={i} className="flex items-center gap-2">
+              <span className="text-xs shrink-0 w-5 text-center" style={{ color: 'var(--wb-text-3)' }}>{i + 1}</span>
+              <input className={`${inp} flex-1`} style={inpS} value={opt.labelEn}
                 onChange={(e) => {
                   const opts = [...form.options];
                   opts[i] = { ...opts[i], labelEn: e.target.value };
                   setForm({ ...form, options: opts });
-                }} placeholder={`Menu option ${i+1}`} />
+                }} placeholder={`Option ${i + 1} label`} />
+              <button
+                disabled={form.options.length <= 2}
+                onClick={() => setForm({ ...form, options: form.options.filter((_, idx) => idx !== i) })}
+                className="shrink-0 p-1.5 rounded hover:bg-red-500/10 transition-colors disabled:opacity-30"
+                style={{ color: 'var(--wb-text-3)' }}>
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
           ))}
-          <div className="flex gap-2">
+          {form.options.length < 9 && (
+            <button
+              onClick={() => setForm({ ...form, options: [...form.options, { labelEn: '', replyEn: '' }] })}
+              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-colors w-full"
+              style={{ color: 'var(--wb-accent)', border: '1px dashed var(--wb-accent)', background: 'var(--wb-bg-active)' }}>
+              <Plus className="h-3.5 w-3.5" />Add Option
+            </button>
+          )}
+          <div className="flex gap-2 pt-1">
             <Button variant="outline" onClick={() => setStep(1)} className="border-white/10 text-white/60 hover:bg-white/5 flex-1">← Back</Button>
-            <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={() => setStep(3)}>Next →</Button>
+            <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => setStep(3)}
+              disabled={form.options.some((o) => !o.labelEn.trim())}>
+              Next →
+            </Button>
           </div>
         </div>
       )}
 
-      {/* Step 3: Reply messages */}
+      {/* Step 3: Reply messages — one per option, dynamic count */}
       {step === 3 && (
         <div className="space-y-4">
-          <p className="text-sm text-white/60">What should the bot reply when each option is selected?</p>
+          <p className="text-sm" style={{ color: 'var(--wb-text-3)' }}>
+            What should the bot reply for each of your {form.options.length} options?
+          </p>
           {form.options.map((opt, i) => (
             <div key={i}>
               <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--wb-text-2)' }}>
-                {i+1}️⃣ {opt.labelEn || `Option ${i+1}`} reply
+                {i + 1}️⃣ {opt.labelEn || `Option ${i + 1}`}
               </label>
               <textarea rows={2} className={`${inp} resize-none`} style={inpS} value={opt.replyEn}
                 onChange={(e) => {
                   const opts = [...form.options];
                   opts[i] = { ...opts[i], replyEn: e.target.value };
                   setForm({ ...form, options: opts });
-                }} placeholder="Short reply (2-3 lines max)" />
+                }} placeholder="Short reply shown to customer (2-3 lines max)" />
             </div>
           ))}
           <div className="flex gap-2">
