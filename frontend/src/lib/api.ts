@@ -65,6 +65,7 @@ export const deleteFlow = (workspaceId: string, flowId: string) =>
   api.delete(`/workspaces/${workspaceId}/flows/${flowId}`);
 export const updateFlowSteps = (workspaceId: string, flowId: string, steps: unknown[]) =>
   api.put(`/workspaces/${workspaceId}/flows/${flowId}/steps`, { steps }).then((r) => r.data);
+// Returns { flows: [{name,trigger,message,category}] } — does NOT create in DB
 export const aiGenerateFlows = (workspaceId: string, description: string, business_type?: string) =>
   api.post(`/workspaces/${workspaceId}/ai-generate-flows`, { description, business_type }).then((r) => r.data);
 
@@ -72,13 +73,15 @@ export const aiGenerateFlows = (workspaceId: string, description: string, busine
 export const getWorkspaceAnalytics = (id: string) =>
   api.get(`/workspaces/${id}/analytics`).then((r) => r.data);
 
-// Smart Menu
+// Smart Menu (smart_menus table)
 export const getSmartMenu = (workspaceId: string) =>
   api.get(`/workspaces/${workspaceId}/smart-menu`).then((r) => r.data);
-export const updateSmartMenu = (workspaceId: string, smart_menu: Record<string, unknown>) =>
-  api.patch(`/workspaces/${workspaceId}/smart-menu`, { smart_menu }).then((r) => r.data);
-export const aiGenerateSmartMenu = (workspaceId: string, description: string) =>
-  api.post(`/workspaces/${workspaceId}/ai-generate-smart-menu`, { description }).then((r) => r.data);
+export const saveSmartMenu = (workspaceId: string, data: Record<string, unknown>) =>
+  api.post(`/workspaces/${workspaceId}/smart-menu`, data).then((r) => r.data);
+export const patchSmartMenu = (workspaceId: string, data: Record<string, unknown>) =>
+  api.patch(`/workspaces/${workspaceId}/smart-menu`, data).then((r) => r.data);
+export const deleteSmartMenu = (workspaceId: string) =>
+  api.delete(`/workspaces/${workspaceId}/smart-menu`);
 
 // Broadcasts
 export const getBroadcasts = (workspaceId: string) =>

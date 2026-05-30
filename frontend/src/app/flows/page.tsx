@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Power, Trash2, ChevronRight, Zap, AlertCircle, Sparkles,
-  Check, Loader2, Globe, MessageSquare, ChevronDown, ChevronUp,
-  Languages, List, GitBranch, Edit3,
+  Check, Loader2, GitBranch, List, ChevronDown, ChevronUp,
+  Edit3, Save, X, Globe, MessageSquare,
 } from 'lucide-react';
 import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
@@ -18,31 +18,74 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useWorkspaceStore } from '@/lib/store';
 import {
   getFlows, createFlow, updateFlow, deleteFlow, aiGenerateFlows,
-  getSmartMenu, updateSmartMenu, aiGenerateSmartMenu,
+  getSmartMenu, saveSmartMenu, patchSmartMenu, deleteSmartMenu,
 } from '@/lib/api';
 import { timeAgo } from '@/lib/utils';
 import { toast } from 'sonner';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Branch = { match: string; message: string };
-type StepConfig = Record<string, unknown> & {
-  message?: string; body?: string; buttons?: string[];
-  branches?: Branch[]; delay_ms?: string; stage?: string; template_name?: string;
-};
+type StepConfig = Record<string, unknown> & { message?: string; body?: string; buttons?: string[]; stage?: string; template_name?: string; delay_ms?: string };
 type Step = { type: string; config: StepConfig };
 type Flow = { id: string; name: string; trigger: Record<string, string>; is_active: boolean; created_at: string; flow_steps: Step[] };
 
-interface AIResult { created: number; flows: { id: string; name: string; trigger: string }[] }
+interface SmartMenuOption {
+  label_en: string; label_hi: string; label_hl: string;
+  reply_en: string; reply_hi: string; reply_hl: string;
+}
+interface SmartMenu {
+  id: string; workspace_id: string; business_name: string;
+  languages: string[]; options: SmartMenuOption[]; is_active: boolean; created_at: string;
+}
 
 type LangKey = 'hindi' | 'english' | 'hinglish';
-const LANGS: { key: LangKey; label: string; flag: string }[] = [
-  { key: 'hindi',    label: 'Hindi',    flag: '🇮🇳' },
-  { key: 'english',  label: 'English',  flag: '🇬🇧' },
-  { key: 'hinglish', label: 'Hinglish', flag: '🔀' },
-];
+const LANG_SUFFIX: Record<LangKey, 'hi' | 'en' | 'hl'> = { hindi: 'hi', english: 'en', hinglish: 'hl' };
+const LANG_LABELS: Record<LangKey, string> = { hindi: '🇮🇳 Hindi', english: '🇬🇧 English', hinglish: '🔀 Hinglish' };
+const LANGS: LangKey[] = ['hindi', 'english', 'hinglish'];
 
-// ── Manual flow components (existing) ────────────────────────────────────────
+// Category config for AI flow grouping
+const CAT_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
+  welcome:  { label: '🎯 Welcome & Greetings',   icon: '🎯', color: 'rgba(234,179,8,0.15)'   },
+  language: { label: '🌐 Language Selection',    icon: '🌐', color: 'rgba(59,130,246,0.12)'  },
+  menu:     { label: '📋 Main Menu Options',     icon: '📋', color: 'rgba(168,85,247,0.12)'  },
+  submenu:  { label: '📁 Sub-menus & Details',   icon: '📁', color: 'rgba(34,197,94,0.12)'   },
+  faq:      { label: '❓ FAQ & Info',            icon: '❓', color: 'rgba(249,115,22,0.12)'  },
+};
+
+// Default option labels by business type
+const BIZ_DEFAULTS: Record<string, { labelEn: string; replyEn: string }[]> = {
+  hotel: [
+    { labelEn: 'Room Booking',       replyEn: 'For room booking please call +91-XXXXX or visit our website.' },
+    { labelEn: 'Check-in / Check-out', replyEn: 'Check-in: 2 PM. Check-out: 12 PM. Please carry valid photo ID.' },
+    { labelEn: 'Room Service',       replyEn: 'Room service available 24/7. Dial extension 0 from your room.' },
+    { labelEn: 'Location & Contact', replyEn: 'Address: [Your address]. Phone: +91-XXXXX. We\'re happy to help!' },
+  ],
+  restaurant: [
+    { labelEn: 'View Menu',          replyEn: 'Our menu has [dishes]. Reply MENU for the full list or call +91-XXXXX.' },
+    { labelEn: 'Book a Table',       replyEn: 'Table booking: call +91-XXXXX or tell us your date, time & guest count.' },
+    { labelEn: 'Home Delivery',      replyEn: 'Delivery in 30-45 mins. Min order ₹200. Call +91-XXXXX to order.' },
+    { labelEn: 'Timings & Location', replyEn: 'Open 10 AM – 11 PM. Address: [Your address].' },
+  ],
+  salon: [
+    { labelEn: 'Our Services',       replyEn: 'We offer Haircut, Color, Facial, Bridal Makeup & more. Call for pricing!' },
+    { labelEn: 'Book Appointment',   replyEn: 'Book now: +91-XXXXX or reply with your preferred date & time.' },
+    { labelEn: 'Timings',            replyEn: 'Open Mon-Sun 9 AM – 9 PM. Walk-ins welcome!' },
+    { labelEn: 'Location',           replyEn: 'Address: [Your address]. Near [landmark]. Google Maps: [link]' },
+  ],
+  general: [
+    { labelEn: 'Our Services',       replyEn: 'We offer [services]. Contact us for details: +91-XXXXX' },
+    { labelEn: 'Pricing',            replyEn: 'Plans start from ₹[amount]. Contact for a custom quote.' },
+    { labelEn: 'Contact Us',         replyEn: 'Phone: +91-XXXXX | Email: info@business.com | WhatsApp: +91-XXXXX' },
+    { labelEn: 'Hours & Location',   replyEn: 'Open Mon-Sat 9 AM – 6 PM. Address: [Your address].' },
+  ],
+};
+
+// ── Shared input style ────────────────────────────────────────────────────────
+
+const inp  = 'w-full rounded-lg px-3 py-2 text-sm border focus:outline-none focus:ring-1 focus:ring-green-500/40';
+const inpS = { background: 'var(--wb-input)', borderColor: 'var(--wb-input-border)', color: 'var(--wb-text)' } as React.CSSProperties;
+
+// ── Manual flow dialog ────────────────────────────────────────────────────────
 
 const STEP_TYPES = [
   { value: 'send_message', label: 'Send Message' },
@@ -52,14 +95,10 @@ const STEP_TYPES = [
   { value: 'wait',         label: 'Wait' },
   { value: 'update_stage', label: 'Update Stage' },
 ];
-const TRIGGER_TYPES = ['keyword', 'new_contact', 'stage_change'];
 const DEFAULT_CONFIG: Record<string, StepConfig> = {
-  send_message:  { message: '' },
-  send_buttons:  { body: '', buttons: ['', '', ''] },
-  on_reply:      { branches: Array.from({ length: 3 }, () => ({ match: '', message: '' })) },
-  send_template: { template_name: '' },
-  wait:          { delay_ms: '0' },
-  update_stage:  { stage: '' },
+  send_message: { message: '' }, send_buttons: { body: '', buttons: ['','',''] },
+  on_reply: { branches: [] }, send_template: { template_name: '' },
+  wait: { delay_ms: '0' }, update_stage: { stage: '' },
 };
 
 function StepEditor({ step, index, onUpdate, onRemove }: { step: Step; index: number; onUpdate: (s: Step) => void; onRemove: () => void }) {
@@ -77,15 +116,11 @@ function StepEditor({ step, index, onUpdate, onRemove }: { step: Step; index: nu
       </Select>
       {step.type === 'send_message' && (
         <Input className="bg-white/5 border-white/10 text-white placeholder:text-white/30" placeholder="Message text"
-          value={step.config.message ?? ''} onChange={(e) => onUpdate({ ...step, config: { message: e.target.value } })} />
+          value={String(step.config.message ?? '')} onChange={(e) => onUpdate({ ...step, config: { message: e.target.value } })} />
       )}
       {step.type === 'update_stage' && (
         <Input className="bg-white/5 border-white/10 text-white placeholder:text-white/30" placeholder="Stage name"
-          value={step.config.stage ?? ''} onChange={(e) => onUpdate({ ...step, config: { stage: e.target.value } })} />
-      )}
-      {step.type === 'send_template' && (
-        <Input className="bg-white/5 border-white/10 text-white placeholder:text-white/30" placeholder="Template name"
-          value={step.config.template_name ?? ''} onChange={(e) => onUpdate({ ...step, config: { template_name: e.target.value } })} />
+          value={String(step.config.stage ?? '')} onChange={(e) => onUpdate({ ...step, config: { stage: e.target.value } })} />
       )}
     </div>
   );
@@ -97,15 +132,11 @@ function FlowDialog({ open, onClose, workspaceId }: { open: boolean; onClose: ()
   const [triggerType, setTriggerType] = useState('keyword');
   const [triggerValue, setTriggerValue] = useState('');
   const [steps, setSteps] = useState<Step[]>([]);
-
   const save = useMutation({
-    mutationFn: () => createFlow(workspaceId, {
-      name, trigger: { type: triggerType, keyword: triggerValue, stage: triggerValue }, steps,
-    }),
+    mutationFn: () => createFlow(workspaceId, { name, trigger: { type: triggerType, keyword: triggerValue, stage: triggerValue }, steps }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['flows', workspaceId] }); toast.success('Flow created'); onClose(); },
     onError: () => toast.error('Failed to create flow'),
   });
-
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto bg-[#252525] border-white/10 text-white">
@@ -117,20 +148,19 @@ function FlowDialog({ open, onClose, workspaceId }: { open: boolean; onClose: ()
             <Select value={triggerType} onValueChange={(v) => v && setTriggerType(v)}>
               <SelectTrigger className="bg-white/5 border-white/10 text-white"><SelectValue /></SelectTrigger>
               <SelectContent className="bg-[#252525] border-white/10 text-white">
-                {TRIGGER_TYPES.map((t) => <SelectItem key={t} value={t} className="hover:bg-white/5 focus:bg-white/5">{t.replace('_', ' ')}</SelectItem>)}
+                {['keyword','new_contact','stage_change'].map((t) => <SelectItem key={t} value={t} className="hover:bg-white/5 focus:bg-white/5">{t.replace('_',' ')}</SelectItem>)}
               </SelectContent>
             </Select>
             {(triggerType === 'keyword' || triggerType === 'stage_change') && (
               <Input className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-                placeholder={triggerType === 'keyword' ? 'Keywords, comma-separated (hi, hello, hey)' : 'Stage name'}
+                placeholder={triggerType === 'keyword' ? 'Keywords, comma-separated' : 'Stage name'}
                 value={triggerValue} onChange={(e) => setTriggerValue(e.target.value)} />
             )}
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-white/70">Steps</p>
-              <Button variant="outline" size="sm" onClick={() => setSteps([...steps, { type: 'send_message', config: { message: '' } }])}
-                className="border-white/10 text-white/60 hover:bg-white/5">
+              <Button variant="outline" size="sm" onClick={() => setSteps([...steps, { type: 'send_message', config: { message: '' } }])} className="border-white/10 text-white/60 hover:bg-white/5">
                 <Plus className="h-3 w-3 mr-1" />Add step
               </Button>
             </div>
@@ -139,10 +169,10 @@ function FlowDialog({ open, onClose, workspaceId }: { open: boolean; onClose: ()
                 onUpdate={(s) => setSteps(steps.map((x, idx) => idx === i ? s : x))}
                 onRemove={() => setSteps(steps.filter((_, idx) => idx !== i))} />
             ))}
-            {steps.length === 0 && <p className="text-xs text-white/30 text-center py-3">No steps yet — click Add step</p>}
+            {steps.length === 0 && <p className="text-xs text-white/30 text-center py-3">No steps yet</p>}
           </div>
           <Button className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={() => save.mutate()}
-            disabled={save.isPending || !name.trim() || !workspaceId}>
+            disabled={save.isPending || !name.trim()}>
             {save.isPending ? 'Creating…' : 'Create Flow'}
           </Button>
         </div>
@@ -151,68 +181,203 @@ function FlowDialog({ open, onClose, workspaceId }: { open: boolean; onClose: ()
   );
 }
 
-// ── AI modal ─────────────────────────────────────────────────────────────────
+// ── AI Generate Modal (with categories + progress) ────────────────────────────
 
-function AIGenerateModal({ open, onClose, workspaceId, businessType }: { open: boolean; onClose: () => void; workspaceId: string; businessType?: string }) {
+interface AIFlowItem { name: string; trigger: string; message: string; category: string }
+
+function AIGenerateModal({ open, onClose, workspaceId, businessType }: {
+  open: boolean; onClose: () => void; workspaceId: string; businessType?: string;
+}) {
   const qc = useQueryClient();
   const [description, setDescription] = useState('');
-  const [step, setStep] = useState<'input' | 'loading'>('input');
+  const [step, setStep] = useState<'input' | 'loading' | 'preview' | 'creating' | 'done'>('input');
+  const [aiFlows, setAiFlows] = useState<AIFlowItem[]>([]);
+  const [selected, setSelected] = useState<Record<number, boolean>>({});
+  const [progress, setProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
 
   const handleClose = () => {
-    if (step === 'loading') return;
-    setStep('input'); setDescription(''); onClose();
+    if (step === 'loading' || step === 'creating') return;
+    setStep('input'); setDescription(''); setAiFlows([]); setSelected({}); onClose();
   };
 
   const generate = async () => {
     if (!description.trim()) { toast.error('Please describe your business first'); return; }
     setStep('loading');
     try {
-      const result: AIResult = await aiGenerateFlows(workspaceId, description.trim(), businessType);
-      qc.invalidateQueries({ queryKey: ['flows', workspaceId] });
-      toast.success(`${result.created} flows created! All are active — test them now.`);
-      setStep('input'); setDescription(''); onClose();
+      const result = await aiGenerateFlows(workspaceId, description.trim(), businessType);
+      const flows: AIFlowItem[] = result.flows || [];
+      if (!flows.length) { toast.error('No flows generated. Try again.'); setStep('input'); return; }
+      setAiFlows(flows);
+      setSelected(Object.fromEntries(flows.map((_, i) => [i, true])));
+      setStep('preview');
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-        || (err as Error)?.message || 'AI generation failed';
-      toast.error(msg);
-      setStep('input');
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || (err as Error)?.message || 'Generation failed';
+      toast.error(msg); setStep('input');
     }
   };
 
+  const createSelected = async () => {
+    const toCreate = aiFlows.filter((_, i) => selected[i]);
+    if (!toCreate.length) return;
+    setProgress({ done: 0, total: toCreate.length });
+    setStep('creating');
+    let done = 0;
+    for (const f of toCreate) {
+      try {
+        await createFlow(workspaceId, {
+          name:    f.name,
+          trigger: { type: 'keyword', keyword: f.trigger },
+          steps:   [{ type: 'send_message', config: { message: f.message } }],
+          is_active: true,
+        });
+      } catch { /* skip individual failures */ }
+      done++;
+      setProgress({ done, total: toCreate.length });
+    }
+    qc.invalidateQueries({ queryKey: ['flows', workspaceId] });
+    setStep('done');
+  };
+
+  const selectedCount = Object.values(selected).filter(Boolean).length;
+  const toggleAll = (val: boolean) => setSelected(Object.fromEntries(aiFlows.map((_, i) => [i, val])));
+
+  // Group by category
+  const grouped: Record<string, { index: number; flow: AIFlowItem }[]> = {};
+  aiFlows.forEach((f, i) => {
+    const cat = f.category || 'faq';
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push({ index: i, flow: f });
+  });
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-xl bg-[#252525] border-white/10 text-white">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#252525] border-white/10 text-white">
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-yellow-400" />Generate Flows with AI
           </DialogTitle>
         </DialogHeader>
+
+        {/* Input */}
         {step === 'input' && (
           <div className="space-y-4 mt-2">
             <div>
               <p className="text-sm font-medium text-white/80 mb-1.5">Describe your business</p>
-              <textarea autoFocus rows={6} value={description} onChange={(e) => setDescription(e.target.value)}
-                placeholder="Example: Hotel in Delhi. Check-in 2 PM, checkout 12 PM. Restaurant, spa, gym. Room service 24/7. Rooms from ₹3,500/night."
+              <textarea autoFocus rows={5} value={description} onChange={(e) => setDescription(e.target.value)}
+                placeholder="Example: Hotel Grand in Delhi. Check-in 2 PM, checkout 12 PM. Deluxe rooms from ₹3,500/night, Suites ₹7,000. Restaurant open 7 AM-10 PM. Pool, gym, spa. Room service 24/7. Contact: +91-9999999999."
                 className="w-full rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-green-500/50"
                 style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
                 onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) generate(); }} />
-              <p className="text-xs text-white/30 mt-1.5">AI creates 5 keyword flows: Main Menu + 4 option replies. All activated immediately.</p>
+              <p className="text-xs text-white/30 mt-1.5">The more detail you give (prices, timings, phone), the better the flows. AI generates 15-20+ flows automatically.</p>
             </div>
             <Button onClick={generate} disabled={!description.trim()} className="w-full bg-green-600 hover:bg-green-700 text-white h-11 text-sm font-semibold">
-              <Sparkles className="h-4 w-4 mr-2" />Generate 5 Flows
+              <Sparkles className="h-4 w-4 mr-2" />Generate All Flows
             </Button>
           </div>
         )}
+
+        {/* Loading */}
         {step === 'loading' && (
           <div className="flex flex-col items-center justify-center py-14 gap-4">
-            <div className="relative">
-              <Loader2 className="h-10 w-10 text-green-400 animate-spin" />
-              <Sparkles className="h-4 w-4 text-yellow-400 absolute -top-1 -right-1" />
+            <div className="relative"><Loader2 className="h-10 w-10 text-green-400 animate-spin" /><Sparkles className="h-4 w-4 text-yellow-400 absolute -top-1 -right-1" /></div>
+            <div className="text-center">
+              <p className="text-base font-semibold text-white">AI is generating your flows…</p>
+              <p className="text-sm text-white/40 mt-1">Creating 15-20+ flows tailored to your business</p>
+            </div>
+          </div>
+        )}
+
+        {/* Preview with categories */}
+        {step === 'preview' && (
+          <div className="space-y-4 mt-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-white">
+                <span className="text-green-400">{aiFlows.length} flows</span> generated — select which to create
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => toggleAll(true)}  className="text-xs text-green-400 hover:text-green-300">Select All</button>
+                <span className="text-white/20">|</span>
+                <button onClick={() => toggleAll(false)} className="text-xs text-white/40 hover:text-white/60">None</button>
+                <button onClick={() => setStep('input')} className="text-xs text-white/30 hover:text-white/50 underline ml-2">← Edit</button>
+              </div>
+            </div>
+
+            {/* Category groups */}
+            {Object.entries(CAT_CONFIG).map(([cat, cfg]) => {
+              const items = grouped[cat] || [];
+              if (!items.length) return null;
+              const allSel = items.every((x) => selected[x.index]);
+              return (
+                <div key={cat} className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div className="flex items-center justify-between px-3 py-2" style={{ background: cfg.color }}>
+                    <span className="text-sm font-semibold text-white">{cfg.label} <span className="text-white/40 font-normal text-xs">({items.length})</span></span>
+                    <button onClick={() => {
+                      const next = { ...selected };
+                      items.forEach((x) => { next[x.index] = !allSel; });
+                      setSelected(next);
+                    }} className="text-xs text-white/60 hover:text-white">
+                      {allSel ? 'Deselect' : 'Select'} all
+                    </button>
+                  </div>
+                  <div className="divide-y divide-white/5">
+                    {items.map(({ index, flow }) => (
+                      <label key={index} className="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-white/3">
+                        <input type="checkbox" checked={selected[index] ?? true}
+                          onChange={(e) => setSelected({ ...selected, [index]: e.target.checked })}
+                          className="mt-0.5 accent-green-500 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-sm font-medium text-white truncate">{flow.name}</span>
+                            <span className="text-xs font-mono px-1.5 py-0.5 rounded shrink-0"
+                              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}>
+                              {flow.trigger}
+                            </span>
+                          </div>
+                          <p className="text-xs text-white/50 truncate">{flow.message}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+            <div className="flex gap-3 pt-1">
+              <Button variant="outline" onClick={handleClose} className="border-white/10 text-white/60 hover:bg-white/5">Cancel</Button>
+              <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold"
+                onClick={createSelected} disabled={selectedCount === 0}>
+                <Check className="h-4 w-4 mr-2" />Create {selectedCount} Flow{selectedCount !== 1 ? 's' : ''}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Creating progress */}
+        {step === 'creating' && (
+          <div className="flex flex-col items-center justify-center py-12 gap-4">
+            <Loader2 className="h-8 w-8 text-green-400 animate-spin" />
+            <div className="text-center">
+              <p className="text-base font-semibold text-white">Creating flows…</p>
+              <p className="text-2xl font-bold text-green-400 mt-2">{progress.done} / {progress.total}</p>
+              <div className="w-48 h-1.5 rounded-full mt-3 overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                <div className="h-full rounded-full bg-green-500 transition-all"
+                  style={{ width: `${(progress.done / progress.total) * 100}%` }} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Done */}
+        {step === 'done' && (
+          <div className="flex flex-col items-center justify-center py-12 gap-4">
+            <div className="h-14 w-14 rounded-full bg-green-500/15 flex items-center justify-center">
+              <Check className="h-7 w-7 text-green-400" />
             </div>
             <div className="text-center">
-              <p className="text-base font-semibold text-white">Generating & creating flows…</p>
-              <p className="text-sm text-white/40 mt-1">AI is writing messages and saving to your account</p>
+              <p className="text-base font-semibold text-white">✅ {progress.total} flows created successfully!</p>
+              <p className="text-sm text-white/40 mt-1">All flows are active. Test them on WhatsApp.</p>
             </div>
+            <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleClose}>Done</Button>
           </div>
         )}
       </DialogContent>
@@ -220,99 +385,145 @@ function AIGenerateModal({ open, onClose, workspaceId, businessType }: { open: b
   );
 }
 
-// ── Smart Menu visual tree ────────────────────────────────────────────────────
+// ── Smart Menu Setup Wizard ───────────────────────────────────────────────────
 
-interface SmartMenuData {
-  custom: Record<string, unknown>;
-  defaults: {
-    main: Record<LangKey, string>;
-    sub: Record<string, Record<LangKey, string>>;
-    replies: Record<string, Record<LangKey, string>>;
-  };
-  business_type: string;
+interface SetupFormState {
+  businessName: string;
+  greetByName: boolean;
+  languages: string[];
+  options: { labelEn: string; replyEn: string }[];
 }
 
-function MessageBubble({ text }: { text: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const lines = text.split('\n');
-  const preview = lines.slice(0, 3).join('\n');
-  const hasMore = lines.length > 3;
-  return (
-    <div className="rounded-lg p-2.5 text-xs leading-relaxed cursor-pointer"
-      style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.8)', whiteSpace: 'pre-line' }}
-      onClick={() => hasMore && setExpanded(!expanded)}>
-      {expanded ? text : preview}
-      {hasMore && !expanded && <span className="text-white/30 ml-1">…</span>}
-    </div>
-  );
-}
-
-function LangTabs({ data, field }: { data: Record<LangKey, string>; field: string }) {
-  const [activeLang, setActiveLang] = useState<LangKey>('english');
-  if (!data) return null;
-  return (
-    <div className="mt-2">
-      <div className="flex gap-1 mb-1.5">
-        {LANGS.map((l) => (
-          <button key={l.key} onClick={() => setActiveLang(l.key)}
-            className={`text-xs px-2 py-0.5 rounded transition-colors ${activeLang === l.key ? 'bg-green-500/20 text-green-400' : 'text-white/30 hover:text-white/50'}`}>
-            {l.flag} {l.label}
-          </button>
-        ))}
-      </div>
-      <MessageBubble key={`${field}-${activeLang}`} text={data[activeLang] || '(not set)'} />
-    </div>
-  );
-}
-
-type SubMenuEntry = Record<LangKey, string>;
-
-function SubMenuNode({
-  option, subData, repliesData, label,
-}: {
-  option: string;
-  subData: SubMenuEntry;
-  repliesData: Record<string, Record<LangKey, string>>;
-  label: string;
+function SmartMenuSetup({ workspaceId, workspaceName, businessType, onSaved }: {
+  workspaceId: string; workspaceName: string; businessType?: string; onSaved: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const replyKeys = ['1','2','3','4'].map((n) => `${option}_${n}`);
+  const qc = useQueryClient();
+  const bt = businessType || 'general';
+  const defaults = BIZ_DEFAULTS[bt] || BIZ_DEFAULTS.general;
+
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [form, setForm] = useState<SetupFormState>({
+    businessName: workspaceName,
+    greetByName:  true,
+    languages:    ['hindi', 'english', 'hinglish'],
+    options:      defaults.map((d) => ({ labelEn: d.labelEn, replyEn: d.replyEn })),
+  });
+
+  const save = useMutation({
+    mutationFn: () => saveSmartMenu(workspaceId, {
+      business_name: form.businessName.trim(),
+      languages:     form.languages,
+      options:       form.options.map((o) => ({
+        label_en: o.labelEn, label_hi: '', label_hl: '',
+        reply_en: o.replyEn, reply_hi: '', reply_hl: '',
+      })),
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['smart-menu', workspaceId] }); toast.success('Smart Menu activated! 🎉'); onSaved(); },
+    onError: (e: Error) => toast.error(e.message || 'Failed to save'),
+  });
+
+  const toggleLang = (l: string) =>
+    setForm({ ...form, languages: form.languages.includes(l) ? form.languages.filter((x) => x !== l) : [...form.languages, l] });
 
   return (
-    <div className="rounded-lg border border-white/8" style={{ background: 'rgba(255,255,255,0.03)' }}>
-      <button className="w-full flex items-center justify-between px-3 py-2.5 text-left" onClick={() => setOpen(!open)}>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono px-1.5 py-0.5 rounded"
-            style={{ background: 'var(--wb-bg-active)', color: 'var(--wb-accent)' }}>{option}</span>
-          <span className="text-sm font-medium text-white/80">{label}</span>
-          <span className="text-xs text-white/30">sub-menu</span>
+    <div className="rounded-2xl p-6 space-y-5"
+      style={{ background: 'var(--wb-bg-card)', border: '1px solid var(--wb-border)' }}>
+      {/* Progress indicator */}
+      <div className="flex items-center gap-2 mb-2">
+        {([1,2,3] as const).map((s) => (
+          <div key={s} className="flex items-center gap-2">
+            <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${step >= s ? 'bg-green-600 text-white' : 'bg-white/10 text-white/40'}`}>{s}</div>
+            {s < 3 && <div className={`h-px w-8 ${step > s ? 'bg-green-500' : 'bg-white/10'}`} />}
+          </div>
+        ))}
+        <span className="text-xs text-white/40 ml-2">
+          {step === 1 ? 'Business Info' : step === 2 ? 'Menu Options' : 'Reply Messages'}
+        </span>
+      </div>
+
+      {/* Step 1: Business info */}
+      {step === 1 && (
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--wb-text-2)' }}>Business Name</label>
+            <input className={inp} style={inpS} value={form.businessName}
+              onChange={(e) => setForm({ ...form, businessName: e.target.value })} placeholder="e.g. Hotel Grand" />
+          </div>
+          <div>
+            <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--wb-text-2)' }}>Greeting Style</label>
+            <div className="flex gap-3">
+              {[{v:true,l:'By Name 👤'},{v:false,l:'Generic 👋'}].map(({v,l}) => (
+                <label key={String(v)} className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" checked={form.greetByName === v} onChange={() => setForm({ ...form, greetByName: v })} className="accent-green-500" />
+                  <span className="text-sm" style={{ color: 'var(--wb-text)' }}>{l}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium mb-2 block" style={{ color: 'var(--wb-text-2)' }}>Languages</label>
+            <div className="flex gap-3 flex-wrap">
+              {LANGS.map((l) => (
+                <label key={l} className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.languages.includes(l)} onChange={() => toggleLang(l)} className="accent-green-500" />
+                  <span className="text-sm" style={{ color: 'var(--wb-text)' }}>{LANG_LABELS[l]}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <Button className="w-full bg-green-600 hover:bg-green-700 text-white"
+            onClick={() => setStep(2)} disabled={!form.businessName.trim() || !form.languages.length}>
+            Next →
+          </Button>
         </div>
-        {open ? <ChevronUp className="h-3.5 w-3.5 text-white/30" /> : <ChevronDown className="h-3.5 w-3.5 text-white/30" />}
-      </button>
+      )}
 
-      {open && (
-        <div className="px-3 pb-3 space-y-3">
-          {/* Sub-menu message */}
-          <LangTabs data={subData} field={`sub_${option}`} />
+      {/* Step 2: Option labels */}
+      {step === 2 && (
+        <div className="space-y-4">
+          <p className="text-sm text-white/60">Edit the 4 menu option labels your customers will see:</p>
+          {form.options.map((opt, i) => (
+            <div key={i}>
+              <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--wb-text-2)' }}>
+                {i+1}️⃣ Option {i+1}
+              </label>
+              <input className={inp} style={inpS} value={opt.labelEn}
+                onChange={(e) => {
+                  const opts = [...form.options];
+                  opts[i] = { ...opts[i], labelEn: e.target.value };
+                  setForm({ ...form, options: opts });
+                }} placeholder={`Menu option ${i+1}`} />
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setStep(1)} className="border-white/10 text-white/60 hover:bg-white/5 flex-1">← Back</Button>
+            <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={() => setStep(3)}>Next →</Button>
+          </div>
+        </div>
+      )}
 
-          {/* Final replies */}
-          <div className="space-y-2 pl-3 border-l border-white/8">
-            {replyKeys.map((rk) => {
-              const n = rk.split('_')[1];
-              return (
-                <div key={rk}>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-xs font-mono px-1 py-0.5 rounded text-white/50"
-                      style={{ background: 'rgba(255,255,255,0.06)' }}>{n}</span>
-                    <span className="text-xs text-white/40">→ final reply</span>
-                  </div>
-                  {repliesData[rk]
-                    ? <LangTabs data={repliesData[rk]} field={rk} />
-                    : <p className="text-xs text-white/20 italic">no reply defined</p>
-                  }
-                </div>
-              );
-            })}
+      {/* Step 3: Reply messages */}
+      {step === 3 && (
+        <div className="space-y-4">
+          <p className="text-sm text-white/60">What should the bot reply when each option is selected?</p>
+          {form.options.map((opt, i) => (
+            <div key={i}>
+              <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--wb-text-2)' }}>
+                {i+1}️⃣ {opt.labelEn || `Option ${i+1}`} reply
+              </label>
+              <textarea rows={2} className={`${inp} resize-none`} style={inpS} value={opt.replyEn}
+                onChange={(e) => {
+                  const opts = [...form.options];
+                  opts[i] = { ...opts[i], replyEn: e.target.value };
+                  setForm({ ...form, options: opts });
+                }} placeholder="Short reply (2-3 lines max)" />
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setStep(2)} className="border-white/10 text-white/60 hover:bg-white/5 flex-1">← Back</Button>
+            <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={() => save.mutate()} disabled={save.isPending}>
+              {save.isPending ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Saving…</> : <><Check className="h-4 w-4 mr-1.5" />Save & Activate</>}
+            </Button>
           </div>
         </div>
       )}
@@ -320,178 +531,215 @@ function SubMenuNode({
   );
 }
 
-const OPTION_LABELS: Record<string, Record<string, string>> = {
-  hotel:      { '1': 'Room Booking', '2': 'Check-in/out', '3': 'Room Service', '4': 'Location & Contact' },
-  restaurant: { '1': 'View Menu', '2': 'Table Booking', '3': 'Home Delivery', '4': 'Timings & Location' },
-  salon:      { '1': 'Our Services', '2': 'Book Appointment', '3': 'Timings & Location', '4': 'Offers & Packages' },
-  general:    { '1': 'Service 1', '2': 'Service 2', '3': 'Contact', '4': 'Hours & Location' },
-};
+// ── Smart Menu Tree View ──────────────────────────────────────────────────────
 
-function SmartMenuTab({ workspaceId, businessType }: { workspaceId: string; businessType?: string }) {
+function SmartMenuTree({ smartMenu, workspaceId }: { smartMenu: SmartMenu; workspaceId: string }) {
   const qc = useQueryClient();
-  const [aiLoading, setAiLoading] = useState(false);
-  const [description, setDescription] = useState('');
-  const [showAiInput, setShowAiInput] = useState(false);
+  const [activeLang, setActiveLang] = useState<LangKey>('english');
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editValues, setEditValues] = useState<Partial<SmartMenuOption>>({});
 
-  const { data, isLoading } = useQuery<SmartMenuData>({
-    queryKey: ['smart-menu', workspaceId],
-    queryFn: () => getSmartMenu(workspaceId),
-    enabled: !!workspaceId,
+  const sfx = LANG_SUFFIX[activeLang];
+  const activeLangs = (smartMenu.languages || ['english']) as LangKey[];
+
+  const deactivate = useMutation({
+    mutationFn: () => deleteSmartMenu(workspaceId),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['smart-menu', workspaceId] }); toast.success('Smart Menu removed'); },
   });
 
-  const resetCustom = useMutation({
-    mutationFn: () => updateSmartMenu(workspaceId, {}),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['smart-menu', workspaceId] }); toast.success('Reset to defaults'); },
+  const saveEdit = useMutation({
+    mutationFn: async () => {
+      if (editingIdx === null) return;
+      const options = smartMenu.options.map((o, i) => i === editingIdx ? { ...o, ...editValues } : o);
+      return patchSmartMenu(workspaceId, { options });
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['smart-menu', workspaceId] }); setEditingIdx(null); toast.success('Reply updated'); },
   });
 
-  const generateAI = async () => {
-    if (!description.trim()) { toast.error('Describe your business first'); return; }
-    setAiLoading(true);
-    try {
-      await aiGenerateSmartMenu(workspaceId, description.trim());
-      qc.invalidateQueries({ queryKey: ['smart-menu', workspaceId] });
-      toast.success('Smart menu content updated with AI!');
-      setShowAiInput(false);
-      setDescription('');
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-        || (err as Error)?.message || 'Generation failed';
-      toast.error(msg);
-    } finally {
-      setAiLoading(false);
-    }
+  const startEdit = (i: number) => {
+    setEditingIdx(i);
+    setEditValues({
+      [`reply_${sfx}`]: smartMenu.options[i]?.[`reply_${sfx}`] || smartMenu.options[i]?.reply_en || '',
+    });
   };
-
-  if (isLoading) return (
-    <div className="space-y-2 mt-4">
-      {[1,2,3,4].map((i) => <div key={i} className="h-12 rounded-lg animate-pulse bg-white/5" />)}
-    </div>
-  );
-
-  const bt = data?.business_type || businessType || 'general';
-  const optionLabels = OPTION_LABELS[bt] || OPTION_LABELS.general;
-
-  // Merge custom over defaults
-  const resolved = data?.defaults;
-  if (!resolved) return null;
-
-  const custom = (data?.custom || {}) as {
-    main?: Record<LangKey, string>;
-    sub?: Record<string, Record<LangKey, string>>;
-    replies?: Record<string, Record<LangKey, string>>;
-  };
-
-  const mainData: Record<LangKey, string> = Object.fromEntries(
-    LANGS.map((l) => [l.key, custom.main?.[l.key] || resolved.main[l.key] || ''])
-  ) as Record<LangKey, string>;
-
-  const subData = (opt: string): SubMenuEntry =>
-    Object.fromEntries(LANGS.map((l) => [l.key, custom.sub?.[opt]?.[l.key] || resolved.sub?.[opt]?.[l.key] || ''])) as SubMenuEntry;
-
-  const repliesData: Record<string, Record<LangKey, string>> = {};
-  for (const opt of ['1','2','3','4']) {
-    for (const n of ['1','2','3','4']) {
-      const k = `${opt}_${n}`;
-      repliesData[k] = Object.fromEntries(
-        LANGS.map((l) => [l.key, custom.replies?.[k]?.[l.key] || resolved.replies?.[k]?.[l.key] || ''])
-      ) as Record<LangKey, string>;
-    }
-  }
 
   return (
-    <div className="space-y-4 mt-2">
-      {/* Controls */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Button size="sm"
-          className="font-medium"
-          style={{ background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)', color: '#fbbf24' }}
-          onClick={() => setShowAiInput(!showAiInput)}>
-          <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-          {showAiInput ? 'Cancel' : 'Customise with AI'}
-        </Button>
-        {Object.keys(custom).length > 0 && (
-          <Button size="sm" variant="outline"
-            className="border-white/10 text-white/50 hover:bg-white/5 text-xs"
-            onClick={() => resetCustom.mutate()} disabled={resetCustom.isPending}>
-            Reset to defaults
-          </Button>
-        )}
-        <span className="text-xs text-white/30 ml-auto">
-          {Object.keys(custom).length > 0 ? '✦ Using custom content' : 'Using default content'}
-        </span>
-      </div>
-
-      {showAiInput && (
-        <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(234,179,8,0.05)', border: '1px solid rgba(234,179,8,0.2)' }}>
-          <p className="text-sm font-medium text-yellow-400/80">Customise menu with AI</p>
-          <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)}
-            placeholder="Describe your business with real details: prices, timings, phone, address…"
-            className="w-full rounded-lg px-3 py-2 text-sm resize-none focus:outline-none"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }} />
-          <Button size="sm" onClick={generateAI} disabled={aiLoading || !description.trim()}
-            className="bg-yellow-500/80 hover:bg-yellow-500 text-black font-semibold">
-            {aiLoading ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Generating…</> : <><Sparkles className="h-3.5 w-3.5 mr-1.5" />Fill with AI</>}
-          </Button>
+    <div className="space-y-4">
+      {/* Status bar */}
+      <div className="flex items-center justify-between flex-wrap gap-2 rounded-xl px-4 py-3"
+        style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+          <span className="text-sm font-semibold text-green-400">Smart Menu is ACTIVE</span>
+          <span className="text-xs text-white/30">· {smartMenu.business_name}</span>
         </div>
-      )}
+        <button onClick={() => deactivate.mutate()} disabled={deactivate.isPending}
+          className="text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1">
+          <Trash2 className="h-3 w-3" />Remove
+        </button>
+      </div>
 
       {/* Level 0: Welcome */}
-      <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="rounded-xl p-4" style={{ background: 'var(--wb-bg-card)', border: '1px solid var(--wb-border)' }}>
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-lg">👋</span>
-          <span className="text-sm font-semibold text-white">Level 0 — Welcome</span>
-          <span className="text-xs text-white/30">trigger: hi / hello / hey</span>
+          <span className="text-base">👋</span>
+          <span className="text-sm font-semibold" style={{ color: 'var(--wb-text)' }}>Welcome &amp; Language</span>
+          <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--wb-bg-hover)', color: 'var(--wb-text-3)' }}>
+            trigger: hi / hello / hey / namaste
+          </span>
         </div>
-        <MessageBubble text={`Good [Morning/Afternoon/Evening] [Name]! 👋\nWelcome to [Business Name]!\n\nPlease select your language:\n1️⃣ Hindi\n2️⃣ English\n3️⃣ Hinglish`} />
+        <div className="rounded-lg px-3 py-2.5 text-xs leading-relaxed whitespace-pre-line"
+          style={{ background: 'var(--wb-bg-hover)', color: 'var(--wb-text-2)' }}>
+          {`Good [Morning/Afternoon/Evening] [Name]! 👋\nWelcome to ${smartMenu.business_name}!\n\n${(smartMenu.languages || []).map((l, i) => `${i+1}️⃣ ${l.charAt(0).toUpperCase() + l.slice(1)}`).join('\n')}`}
+        </div>
       </div>
 
-      {/* Level 1: Language selection */}
-      <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-lg">🌐</span>
-          <span className="text-sm font-semibold text-white">Level 1 — Language Selection</span>
-          <span className="text-xs text-white/30">trigger: 1 / 2 / 3</span>
-        </div>
-        <p className="text-xs text-white/40 mb-2">When customer picks a language, stores it and sends main menu in that language.</p>
+      {/* Language tabs */}
+      <div className="flex gap-1 rounded-lg p-1" style={{ background: 'var(--wb-bg-hover)' }}>
+        {LANGS.filter((l) => activeLangs.includes(l)).map((l) => (
+          <button key={l} onClick={() => setActiveLang(l)}
+            className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${activeLang === l ? 'bg-green-600 text-white' : ''}`}
+            style={activeLang !== l ? { color: 'var(--wb-text-3)' } : {}}>
+            {LANG_LABELS[l]}
+          </button>
+        ))}
       </div>
 
-      {/* Level 2: Main menu */}
-      <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-lg">📋</span>
-          <span className="text-sm font-semibold text-white">Level 2 — Main Menu</span>
-          <span className="text-xs text-white/30">sent after language selection</span>
+      {/* Main menu for active language */}
+      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--wb-border)' }}>
+        {/* Header */}
+        <div className="px-4 py-3 flex items-center gap-2" style={{ background: 'var(--wb-bg-card)', borderBottom: '1px solid var(--wb-border)' }}>
+          <span className="text-base">📋</span>
+          <span className="text-sm font-semibold" style={{ color: 'var(--wb-text)' }}>Main Menu ({LANG_LABELS[activeLang]})</span>
         </div>
-        <LangTabs data={mainData} field="main" />
-      </div>
 
-      {/* Level 3+4: Sub-menus and final replies */}
-      <div>
-        <div className="flex items-center gap-2 mb-2 px-1">
-          <span className="text-lg">📁</span>
-          <span className="text-sm font-semibold text-white">Levels 3 & 4 — Sub-menus & Final Replies</span>
-          <span className="text-xs text-white/30">trigger: 1 / 2 / 3 / 4 from main menu</span>
+        {/* Preview the main menu message */}
+        <div className="px-4 py-3" style={{ background: 'var(--wb-bg-hover)', borderBottom: '1px solid var(--wb-border)' }}>
+          <p className="text-xs font-mono leading-relaxed whitespace-pre-line" style={{ color: 'var(--wb-text-2)' }}>
+            {activeLang === 'hindi'    ? 'आप क्या चाहते हैं? 😊' :
+             activeLang === 'hinglish' ? 'Aap kya chahte hain? 😊' :
+                                        'How can we help you? 😊'}
+            {'\n\n'}
+            {smartMenu.options.map((o, i) => `${i+1}️⃣ ${o[`label_${sfx}`] || o.label_en || `Option ${i+1}`}`).join('\n')}
+            {'\n\n0️⃣ Change language'}
+          </p>
         </div>
-        <div className="space-y-2">
-          {['1','2','3','4'].map((opt) => (
-            <SubMenuNode key={opt}
-              option={opt}
-              label={optionLabels[opt] || `Option ${opt}`}
-              subData={subData(opt)}
-              repliesData={repliesData}
-            />
-          ))}
+
+        {/* Option rows */}
+        <div className="divide-y" style={{ borderColor: 'var(--wb-border)' }}>
+          {smartMenu.options.map((opt, i) => {
+            const label = opt[`label_${sfx}`] || opt.label_en || `Option ${i+1}`;
+            const reply = opt[`reply_${sfx}`] || opt.reply_en || '';
+            const isEditing = editingIdx === i;
+
+            return (
+              <div key={i} className="px-4 py-3" style={{ background: 'var(--wb-bg-card)' }}>
+                <div className="flex items-start gap-2">
+                  <span className="text-xs font-mono shrink-0 mt-0.5 px-1.5 py-0.5 rounded"
+                    style={{ background: 'var(--wb-bg-active)', color: 'var(--wb-accent)' }}>
+                    {i+1}️⃣
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium mb-1" style={{ color: 'var(--wb-text)' }}>{label}</p>
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <textarea rows={2} className={`${inp} resize-none text-xs`} style={inpS}
+                          value={String(editValues[`reply_${sfx}`] || '')}
+                          onChange={(e) => setEditValues({ [`reply_${sfx}`]: e.target.value })} />
+                        <div className="flex gap-1.5">
+                          <Button size="xs" className="bg-green-600 hover:bg-green-700 text-white text-xs px-2 h-6"
+                            onClick={() => saveEdit.mutate()} disabled={saveEdit.isPending}>
+                            {saveEdit.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Save className="h-3 w-3 mr-1" />Save</>}
+                          </Button>
+                          <Button size="xs" variant="outline" onClick={() => setEditingIdx(null)}
+                            className="border-white/10 text-white/60 hover:bg-white/5 text-xs px-2 h-6">
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2">
+                        <p className="text-xs flex-1" style={{ color: 'var(--wb-text-3)' }}>
+                          {reply || <em className="opacity-50">No reply set</em>}
+                        </p>
+                        <button onClick={() => startEdit(i)}
+                          className="shrink-0 p-1 rounded hover:bg-white/5 transition-colors"
+                          style={{ color: 'var(--wb-text-3)' }}>
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       <div className="rounded-lg px-3 py-2.5 text-xs" style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.15)', color: '#60a5fa' }}>
-        <strong>How it works:</strong> Customer sends "hi" → welcome + language picker → customer picks language → main menu in their language → customer picks 1-4 → sub-menu → customer picks 1-4 → final reply. Customer can type "0" to go back or "menu" to restart.
+        <strong>Flow:</strong> Customer sends &quot;hi&quot; → language picker → main menu → picks 1-4 → reply shown. Type &quot;0&quot; or &quot;menu&quot; to go back.
       </div>
     </div>
   );
 }
 
-// ── Main page ──────────────────────────────────────────────────────────────────
+// ── Smart Menu Tab ─────────────────────────────────────────────────────────────
+
+function SmartMenuTab({ workspaceId, workspaceName, businessType }: {
+  workspaceId: string; workspaceName: string; businessType?: string;
+}) {
+  const [showSetup, setShowSetup] = useState(false);
+
+  const { data: smartMenu, isLoading } = useQuery<SmartMenu | null>({
+    queryKey: ['smart-menu', workspaceId],
+    queryFn: () => getSmartMenu(workspaceId),
+    enabled: !!workspaceId,
+  });
+
+  if (isLoading) return (
+    <div className="space-y-3 mt-4">{[1,2,3].map((i) => <div key={i} className="h-16 rounded-xl animate-pulse" style={{ background: 'var(--wb-bg-card)' }} />)}</div>
+  );
+
+  if (!smartMenu && !showSetup) return (
+    <div className="mt-4 flex flex-col items-center justify-center py-16 gap-5 rounded-2xl"
+      style={{ border: '1px dashed var(--wb-border)' }}>
+      <div className="h-16 w-16 rounded-2xl flex items-center justify-center text-3xl"
+        style={{ background: 'var(--wb-bg-card)', border: '1px solid var(--wb-border)' }}>🤖</div>
+      <div className="text-center max-w-sm">
+        <h3 className="text-base font-semibold mb-1" style={{ color: 'var(--wb-text)' }}>Smart Multi-Level Menu</h3>
+        <p className="text-sm" style={{ color: 'var(--wb-text-3)' }}>
+          Set up an intelligent chatbot that greets customers by name, lets them pick their language, and guides them through your options.
+        </p>
+      </div>
+      <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={() => setShowSetup(true)}>
+        <Zap className="h-4 w-4 mr-2" />Setup Smart Menu
+      </Button>
+    </div>
+  );
+
+  if (!smartMenu && showSetup) return (
+    <div className="mt-4">
+      <button onClick={() => setShowSetup(false)} className="text-xs mb-3 flex items-center gap-1" style={{ color: 'var(--wb-text-3)' }}>
+        ← Cancel setup
+      </button>
+      <SmartMenuSetup
+        workspaceId={workspaceId}
+        workspaceName={workspaceName}
+        businessType={businessType}
+        onSaved={() => setShowSetup(false)}
+      />
+    </div>
+  );
+
+  return (
+    <div className="mt-4">
+      <SmartMenuTree smartMenu={smartMenu!} workspaceId={workspaceId} />
+    </div>
+  );
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function FlowsPage() {
   const { activeWorkspace } = useWorkspaceStore();
@@ -517,46 +765,42 @@ export default function FlowsPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['flows', activeWorkspace?.id] }); toast.success('Flow deleted'); },
   });
 
-  const openNew = () => {
-    if (!activeWorkspace) { toast.error('Create a workspace first — go to Settings'); return; }
-    setDialogOpen(true);
-  };
-
-  const openAI = () => {
-    if (!activeWorkspace) { toast.error('Create a workspace first — go to Settings'); return; }
-    setAiModalOpen(true);
-  };
-
   return (
     <AppShell>
       <div className="p-6 max-w-4xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
           <div>
-            <h1 className="text-xl font-bold text-white">Flows</h1>
-            <p className="text-sm text-white/40 mt-0.5">Automate your WhatsApp conversations</p>
+            <h1 className="text-xl font-bold" style={{ color: 'var(--wb-text)' }}>Flows</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--wb-text-3)' }}>Automate your WhatsApp conversations</p>
           </div>
-          <div className="flex gap-2">
-            {tab === 'manual' && (
-              <>
-                <Button size="sm" onClick={openAI}
-                  className="font-medium"
-                  style={{ background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)', color: '#fbbf24' }}>
-                  <Sparkles className="h-3.5 w-3.5 mr-1.5" />Generate with AI
-                </Button>
-                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={openNew}>
-                  <Plus className="h-4 w-4 mr-1" />New Flow
-                </Button>
-              </>
-            )}
-          </div>
+          {tab === 'manual' && (
+            <div className="flex gap-2">
+              <Button size="sm"
+                style={{ background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)', color: '#fbbf24' }}
+                onClick={() => {
+                  if (!activeWorkspace) { toast.error('Create a workspace first'); return; }
+                  setAiModalOpen(true);
+                }}>
+                <Sparkles className="h-3.5 w-3.5 mr-1.5" />Generate with AI
+              </Button>
+              <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => {
+                  if (!activeWorkspace) { toast.error('Create a workspace first'); return; }
+                  setDialogOpen(true);
+                }}>
+                <Plus className="h-4 w-4 mr-1" />New Flow
+              </Button>
+            </div>
+          )}
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 mb-5 rounded-xl p-1 w-fit" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        {/* Tab bar */}
+        <div className="flex gap-1 mb-5 rounded-xl p-1 w-fit"
+          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
           {([
-            { key: 'smart',  icon: <GitBranch className="h-3.5 w-3.5" />,  label: 'Smart Menu' },
-            { key: 'manual', icon: <List       className="h-3.5 w-3.5" />,  label: 'Manual Flows' },
+            { key: 'smart',  icon: <GitBranch className="h-3.5 w-3.5" />, label: 'Smart Menu' },
+            { key: 'manual', icon: <List      className="h-3.5 w-3.5" />, label: 'Manual Flows' },
           ] as const).map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === t.key ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/60'}`}>
@@ -566,29 +810,31 @@ export default function FlowsPage() {
         </div>
 
         {!activeWorkspace && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-sm text-amber-400">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            No workspace selected.{' '}
-            <Link href="/settings" className="underline hover:text-amber-300">Go to Settings to create one.</Link>
+          <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-sm text-amber-400">
+            <AlertCircle className="h-4 w-4 shrink-0" />No workspace.{' '}
+            <Link href="/settings" className="underline">Go to Settings.</Link>
           </div>
         )}
 
         {/* Smart Menu tab */}
         {tab === 'smart' && activeWorkspace && (
-          <SmartMenuTab workspaceId={activeWorkspace.id} businessType={activeWorkspace.business_type ?? undefined} />
+          <SmartMenuTab
+            workspaceId={activeWorkspace.id}
+            workspaceName={activeWorkspace.name || ''}
+            businessType={activeWorkspace.business_type ?? undefined}
+          />
         )}
 
         {/* Manual Flows tab */}
         {tab === 'manual' && (
-          isLoading ? (
-            <div className="text-center py-16 text-white/30">Loading…</div>
-          ) : flows.length === 0 ? (
+          isLoading ? <div className="text-center py-16 text-white/30">Loading…</div>
+          : flows.length === 0 ? (
             <div className="text-center py-16 text-white/30">
               <Zap className="h-10 w-10 mx-auto mb-3 text-white/10" />
-              <p className="mb-4">No flows yet. Create manually or let AI generate them.</p>
-              <Button size="sm" onClick={openAI}
-                className="font-medium"
-                style={{ background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)', color: '#fbbf24' }}>
+              <p className="mb-4">No flows yet. Create manually or generate with AI.</p>
+              <Button size="sm"
+                style={{ background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.3)', color: '#fbbf24' }}
+                onClick={() => { if (activeWorkspace) setAiModalOpen(true); }}>
                 <Sparkles className="h-3.5 w-3.5 mr-1.5" />Generate with AI
               </Button>
             </div>
@@ -610,8 +856,7 @@ export default function FlowsPage() {
                         <Zap className="h-3 w-3" />
                         <span>Trigger: {flow.trigger?.type ?? '—'}</span>
                         {flow.trigger?.keyword && (
-                          <><ChevronRight className="h-3 w-3" />
-                          <span className="font-mono text-white/60 truncate max-w-[120px]">{flow.trigger.keyword}</span></>
+                          <><ChevronRight className="h-3 w-3" /><span className="font-mono text-white/60 truncate max-w-[120px]">{flow.trigger.keyword}</span></>
                         )}
                       </div>
                       <p className="text-xs text-white/30">{flow.flow_steps?.length ?? 0} steps · {timeAgo(flow.created_at)}</p>

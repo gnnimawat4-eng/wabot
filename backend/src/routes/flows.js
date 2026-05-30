@@ -96,7 +96,7 @@ module.exports = async function flowRoutes(fastify) {
     return reply.code(204).send();
   });
 
-  // AI flow generation — generates + creates all flows in one call
+  // AI flow generation — returns JSON only; frontend creates selected flows
   fastify.post('/:workspaceId/ai-generate-flows', auth, async (req, reply) => {
     const { workspaceId } = req.params;
     const { description, business_type } = req.body || {};
@@ -107,53 +107,44 @@ module.exports = async function flowRoutes(fastify) {
     const Groq = require('groq-sdk');
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-    const systemPrompt = `You are a WhatsApp chatbot flow builder. Create simple, SHORT flows.
-Rules:
-- First message must be a welcome with numbered menu MAX 4 options
-- Each option leads to ONE short reply (max 2 lines)
-- NO long paragraphs
-- NO asking for more info
-- Keep every message under 100 words
-- Return ONLY JSON, no explanation`;
+    const systemPrompt = `You are a WhatsApp chatbot expert. Generate ALL necessary flows for this business.
+RULES:
+- Each flow = one trigger keyword set + one short reply message (max 3 lines)
+- Keep every message under 150 characters
+- Return ONLY a valid JSON array, nothing else
+- Include a "category" field: "welcome", "language", "menu", "submenu", or "faq"`;
 
+    const bt = business_type || 'general';
     const userPrompt = `Business: ${description.trim()}
-Type: ${business_type || 'general'}
+Type: ${bt}
 
-Create a flow JSON array. Each flow has:
-- name: flow name
-- trigger: comma separated keywords
-- steps: array of message steps
+Generate ALL these flows (no limit — generate as many as needed):
+1. Welcome/greeting flow (trigger: hi,hello,hey,hii,start,menu) — category: welcome
+2. Language select flows if needed (trigger: 1,2,3) — category: language
+3. One flow for EACH main menu option (trigger: 1,2,3,4) — category: menu
+4. Sub-option flows e.g. pricing tiers, specific services (trigger: 11,12,21,22…) — category: submenu
+5. FAQ flows: timings, location, price, contact, offers — category: faq
 
-Create these flows:
-1. Main Menu (trigger: hi,hello,hey) - welcome + numbered menu
-2. Option 1 response flow (trigger: 1)
-3. Option 2 response flow (trigger: 2)
-4. Option 3 response flow (trigger: 3)
-5. Option 4 response flow (trigger: 4)
+${bt === 'hotel' ? `Hotel minimum 15 flows covering: welcome, room types+prices, check-in/out, room service, facilities (pool/gym/spa), restaurant, location/directions, contact, booking, special offers` :
+  bt === 'restaurant' ? `Restaurant minimum 12 flows: welcome, menu categories, today's special, table booking, delivery, timings, location, contact, offers` :
+  bt === 'salon' ? `Salon minimum 12 flows: welcome, services list, pricing, appointment booking, today's offers, timings, location, contact` :
+  `Generate minimum 10 flows covering: welcome, all services, pricing, contact, location, timings, FAQs`}
 
-JSON format:
+JSON format — array of objects:
 [
-  {
-    "name": "Main Menu",
-    "trigger": "hi,hello,hey",
-    "steps": [{ "type": "send_message", "config": { "message": "short welcome + menu" } }]
-  },
-  {
-    "name": "Option 1",
-    "trigger": "1",
-    "steps": [{ "type": "send_message", "config": { "message": "short reply" } }]
-  }
+  { "name": "flow name", "trigger": "keyword1,keyword2", "message": "reply text", "category": "welcome" },
+  ...
 ]`;
 
     try {
       const completion = await groq.chat.completions.create({
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
+          { role: 'user',   content: userPrompt },
         ],
         model: 'llama-3.3-70b-versatile',
-        max_tokens: 2000,
-        temperature: 0.6,
+        max_tokens: 4000,
+        temperature: 0.65,
       });
 
       const text = completion.choices[0]?.message?.content || '[]';
@@ -161,47 +152,24 @@ JSON format:
       if (!match) return reply.code(500).send({ error: 'AI returned unexpected format. Please try again.' });
 
       let aiFlows;
-      try {
-        aiFlows = JSON.parse(match[0]);
-      } catch {
-        return reply.code(500).send({ error: 'Failed to parse AI response. Please try again.' });
-      }
+      try { aiFlows = JSON.parse(match[0]); }
+      catch { return reply.code(500).send({ error: 'Failed to parse AI response. Please try again.' }); }
+
       if (!Array.isArray(aiFlows) || !aiFlows.length) {
         return reply.code(500).send({ error: 'AI returned empty flows. Please try again.' });
       }
 
-      // Create all flows in DB with is_active: true
-      const created = [];
-      for (const f of aiFlows) {
-        if (!f.name || !f.trigger) continue;
-
-        const steps = (f.steps || []).map((s) => ({
-          type: s.type === 'message' ? 'send_message' : (s.type || 'send_message'),
-          config: s.config || {},
-        }));
-
-        const { data: flow, error: flowErr } = await supabase
-          .from('flows')
-          .insert({
-            workspace_id: workspaceId,
-            name: f.name,
-            ...triggerToDb({ type: 'keyword', keyword: f.trigger }),
-            is_active: true,
-          })
-          .select()
-          .single();
-
-        if (flowErr) { console.error('Flow create error:', flowErr.message); continue; }
-
-        if (steps.length) {
-          const rows = steps.map((s, i) => toStepRow(s, i, flow.id, workspaceId));
-          await supabase.from('flow_steps').insert(rows);
-        }
-
-        created.push({ id: flow.id, name: flow.name, trigger: f.trigger });
-      }
-
-      return { created: created.length, flows: created };
+      // Normalise and return — do NOT create in DB (frontend creates after preview)
+      return {
+        flows: aiFlows
+          .filter((f) => f.name && f.trigger)
+          .map((f) => ({
+            name:     f.name,
+            trigger:  f.trigger,
+            message:  f.message || '',
+            category: f.category || 'faq',
+          })),
+      };
     } catch (err) {
       console.error('AI flow generation error:', err?.message);
       return reply.code(500).send({ error: err?.message || 'AI generation failed' });
