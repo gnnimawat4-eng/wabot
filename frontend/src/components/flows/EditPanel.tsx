@@ -46,7 +46,7 @@ export function EditPanel({ node, isDark, onUpdate, onDelete, onAddChild }: Prop
   const setStage = (v: string) => { const c = { ...config, stage: v }; setConfig(c); commit({ config: c }); };
   const setType = (t: NodeType) => { commit({ type: t }); setShowTypePicker(false); };
 
-  const typeCfg = NODE_TYPES[node.type];
+  const typeCfg = NODE_TYPES[node.type] ?? NODE_TYPES.message;
   const borderCol = isDark ? 'var(--wb-border)' : '#e5e5e5';
   const bg = isDark ? 'var(--wb-bg-card)' : '#fff';
 

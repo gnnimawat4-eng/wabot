@@ -10,7 +10,7 @@ import { AIGenerator } from '@/components/flows/AIGenerator';
 import { useWorkspaceStore } from '@/lib/store';
 import { getFlow, updateFlow, updateFlowSteps } from '@/lib/api';
 import { toast } from 'sonner';
-import { useTheme } from 'next-themes';
+import { useTheme } from '@/app/providers';
 import {
   stepsToNodes, nodesToSteps, emptyFlow, layoutNodes,
   type CanvasNode, type NodeType, type RawFlow,

@@ -5,6 +5,7 @@ import { ZoomIn, ZoomOut, Maximize, Save, Sparkles } from 'lucide-react';
 import { FlowNode } from './FlowNode';
 import {
   NODE_W, NODE_H, H_GAP,
+  NODE_TYPES, NODE_TYPES_DARK,
   type CanvasNode, type NodeType,
   makeId, layoutNodes,
 } from './types';
@@ -298,7 +299,3 @@ const NODE_TYPE_DEFAULTS: Record<NodeType, { label: string; config: Record<strin
   action:   { label: 'Action',   config: { stage: '' } },
 };
 
-// Re-export for use in FlowNode
-export { NODE_TYPES_DARK } from './types';
-import { NODE_TYPES } from './types';
-export { NODE_TYPES };

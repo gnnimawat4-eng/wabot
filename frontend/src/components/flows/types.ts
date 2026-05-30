@@ -145,6 +145,21 @@ export function layoutNodes(
   return out;
 }
 
+// Map old backend step types to visual builder node types
+const STEP_TYPE_MAP: Record<string, NodeType> = {
+  send_message:  'message',
+  send_template: 'message',
+  wait:          'action',
+  send_buttons:  'branch',
+  update_stage:  'action',
+};
+const VALID_NODE_TYPES = new Set<string>(['trigger', 'message', 'on_reply', 'branch', 'action']);
+
+function normalizeStepType(t: string): NodeType {
+  if (VALID_NODE_TYPES.has(t)) return t as NodeType;
+  return STEP_TYPE_MAP[t] ?? 'message';
+}
+
 /** Build a node map + rootIds from flat DB steps */
 export function stepsToNodes(steps: RawStep[]): {
   nodes: Record<string, CanvasNode>;
@@ -154,13 +169,14 @@ export function stepsToNodes(steps: RawStep[]): {
 
   // First pass: create nodes
   for (const s of steps) {
-    const lid = (s.config._local_id as string) || `n_${s.id}`;
+    const cfg = s.config ?? {};
+    const lid = (cfg._local_id as string) || `n_${s.id}`;
     nodes[lid] = {
       id: lid, dbId: s.id,
-      type: (s.type || 'message') as NodeType,
-      label: (s.config.label as string) || s.type || 'Step',
-      config: { ...s.config },
-      parentId: (s.config._parent_local_id as string) || null,
+      type: normalizeStepType(s.type || 'message'),
+      label: (cfg.label as string) || s.type || 'Step',
+      config: { ...cfg },
+      parentId: (cfg._parent_local_id as string) || null,
       childIds: [],
       x: 0, y: 0,
     };

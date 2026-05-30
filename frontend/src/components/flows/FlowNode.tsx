@@ -15,9 +15,9 @@ export const FlowNode = memo(function FlowNode({ node, selected, isDark, onSelec
   const [hover, setHover] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
 
-  const cfg = NODE_TYPES[node.type];
-  const darkCfg = NODE_TYPES_DARK[node.type];
-  const bg = isDark ? darkCfg.bg! : cfg.bg;
+  const cfg = NODE_TYPES[node.type] ?? NODE_TYPES.message;
+  const darkCfg = NODE_TYPES_DARK[node.type] ?? NODE_TYPES_DARK.message;
+  const bg = isDark ? (darkCfg.bg ?? cfg.bg) : cfg.bg;
   const border = cfg.border;
   const textColor = cfg.text;
 
