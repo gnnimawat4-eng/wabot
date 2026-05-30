@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { supabase } = require('../services/supabase');
 const { evaluateTriggers, resumeFlowOnReply } = require('../services/flowEngine');
+const { handleConversation } = require('../services/conversationEngine');
 const { handleRoomOrderWebhook } = require('./hotelRooms');
 const wa = require('../services/whatsapp');
 const { getAIReply } = require('../services/aiReply');
@@ -140,6 +141,12 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
   console.log('Query workspace_id:', workspace.id);
   console.log('=== FLOWS QUERY ===');
   console.log('Flows fetched:', JSON.stringify(flows, null, 2));
+
+  // State machine: greeting / menu navigation handled here first
+  const smConsumed = await handleConversation(contact, workspace, msgBody).catch((err) => {
+    console.error('Conversation engine error:', err?.message); return false;
+  });
+  if (smConsumed) return;
 
   // If a flow is waiting for this contact's reply, handle it and stop
   const consumed = await resumeFlowOnReply(workspace.id, contact, msgBody);

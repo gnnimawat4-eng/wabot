@@ -212,6 +212,99 @@ module.exports = async function workspaceRoutes(fastify) {
   });
 
   // ── Analytics (full dashboard data) ────────────────────────────────────
+  // ── Smart Menu: get full config (custom overrides + defaults) ──────────────
+  fastify.get('/:id/smart-menu', auth, async (req) => {
+    const { id } = req.params;
+    const { data, error } = await supabase
+      .from('workspaces').select('smart_menu, business_type').eq('id', id).single();
+    if (error) throw error;
+    const { DEFAULTS } = require('../services/conversationEngine');
+    const bizType = data.business_type || 'general';
+    return {
+      custom:       data.smart_menu || {},
+      defaults:     DEFAULTS[bizType] || DEFAULTS.general,
+      business_type: bizType,
+    };
+  });
+
+  fastify.patch('/:id/smart-menu', auth, async (req, reply) => {
+    const { id } = req.params;
+    const { smart_menu } = req.body || {};
+    const { data, error } = await supabase
+      .from('workspaces').update({ smart_menu }).eq('id', id).select('smart_menu').single();
+    if (error) throw error;
+    return data;
+  });
+
+  // ── AI smart-menu generator ──────────────────────────────────────────────
+  fastify.post('/:id/ai-generate-smart-menu', auth, async (req, reply) => {
+    const { id } = req.params;
+    const { description } = req.body || {};
+    if (!description?.trim()) return reply.code(400).send({ error: 'description is required' });
+    if (!process.env.GROQ_API_KEY) return reply.code(503).send({ error: 'AI not configured' });
+
+    const { data: ws } = await supabase
+      .from('workspaces').select('business_type, name').eq('id', id).single();
+    const { DEFAULTS } = require('../services/conversationEngine');
+    const bizType = ws?.business_type || 'general';
+    const defaults = DEFAULTS[bizType] || DEFAULTS.general;
+
+    const Groq = require('groq-sdk');
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+    const systemPrompt = `You are a WhatsApp chatbot content writer for Indian businesses.
+Fill in REAL content (prices, timings, addresses, phone numbers) based on the business description.
+Rules:
+- Keep messages SHORT (under 120 chars per message)
+- Use ₹ for prices
+- Use +91-XXXXXXXXXX format for phones
+- Reply in the SAME language for each key (hindi/english/hinglish)
+- Return ONLY valid JSON, no explanation`;
+
+    const userPrompt = `Business: ${description.trim()}
+Type: ${bizType}
+Business name: ${ws?.name || 'Business'}
+
+Fill in this smart menu JSON with REAL content from the business description.
+Replace placeholder values (+91-XXXXX, generic text) with ACTUAL details.
+Keep the same JSON structure.
+Provide all 3 languages for EVERY message.
+
+Default structure to fill:
+${JSON.stringify({ main: defaults.main, sub: defaults.sub, replies: defaults.replies }, null, 2)}
+
+Return the filled JSON object (same structure, real content).`;
+
+    try {
+      const completion = await groq.chat.completions.create({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: userPrompt },
+        ],
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 4000,
+        temperature: 0.4,
+      });
+
+      const text = completion.choices[0]?.message?.content || '{}';
+      const match = text.match(/\{[\s\S]*\}/);
+      if (!match) return reply.code(500).send({ error: 'AI returned unexpected format' });
+
+      let smartMenu;
+      try { smartMenu = JSON.parse(match[0]); }
+      catch { return reply.code(500).send({ error: 'Failed to parse AI response' }); }
+
+      const { data, error } = await supabase
+        .from('workspaces').update({ smart_menu: smartMenu }).eq('id', id).select('smart_menu').single();
+      if (error) throw error;
+
+      return { smart_menu: data.smart_menu };
+    } catch (err) {
+      console.error('AI smart-menu error:', err?.message);
+      return reply.code(500).send({ error: err?.message || 'AI generation failed' });
+    }
+  });
+
   fastify.get('/:id/analytics', auth, async (req) => {
     const { id } = req.params;
 
