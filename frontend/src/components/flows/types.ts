@@ -233,11 +233,11 @@ export function nodesToSteps(
 }
 
 /** Create a brand-new flow with a single trigger root node */
-export function emptyFlow(): { nodes: Record<string, CanvasNode>; rootIds: string[] } {
+export function emptyFlow(triggerKeywords = 'hi,hello'): { nodes: Record<string, CanvasNode>; rootIds: string[] } {
   const id = makeId();
   const node: CanvasNode = {
     id, type: 'trigger',
-    label: 'Trigger', config: { trigger_keywords: 'hi,hello' },
+    label: 'Trigger', config: { trigger_keywords: triggerKeywords },
     parentId: null, childIds: [], x: 40, y: -28,
   };
   return { nodes: { [id]: node }, rootIds: [id] };

@@ -38,9 +38,14 @@ export default function FlowsPage() {
       const { nodes: n, rootIds: r } = stepsToNodes(data.flow_steps || []);
       const laid = layoutNodes(r, n);
 
-      // If no steps yet, start with a single trigger node
+      // If no steps yet, show a trigger node seeded with the flow's keywords
       if (Object.keys(laid).length === 0) {
-        const ef = emptyFlow();
+        const kw = (
+          (data as { trigger?: { keyword?: string } }).trigger?.keyword ||
+          ((data as { trigger_config?: { keyword?: string } }).trigger_config?.keyword) ||
+          'hi,hello'
+        ).trim() || 'hi,hello';
+        const ef = emptyFlow(kw);
         setNodes(ef.nodes);
         setRootIds(ef.rootIds);
       } else {
@@ -162,6 +167,7 @@ export default function FlowsPage() {
               </div>
             ) : (
               <FlowBuilder
+                flowId={activeFlowId!}
                 flowName={flowName}
                 nodes={nodes}
                 rootIds={rootIds}
