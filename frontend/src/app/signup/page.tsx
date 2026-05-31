@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { Zap } from 'lucide-react';
 
+const API = process.env.NEXT_PUBLIC_API_URL ?? '';
+
 export default function SignupPage() {
   const router = useRouter();
   const [name, setName] = useState('');
@@ -19,18 +21,32 @@ export default function SignupPage() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { name } },
     });
-    setLoading(false);
+
     if (error) {
       toast.error(error.message);
-    } else {
-      toast.success('Account created! Check your email to confirm.');
-      router.push('/login');
+      setLoading(false);
+      return;
     }
+
+    // Kick off our custom OTP verification email
+    try {
+      await fetch(`${API}/auth/send-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+    } catch {
+      // Non-fatal — the verify-email page lets the user resend
+    }
+
+    setLoading(false);
+    router.push(`/verify-email?email=${encodeURIComponent(email)}`);
   };
 
   return (
