@@ -6,6 +6,16 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// Surface the real API error message so onError handlers get it via e.message
+api.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    const apiMsg = err?.response?.data?.error || err?.response?.data?.message;
+    if (apiMsg) err.message = apiMsg;
+    return Promise.reject(err);
+  }
+);
+
 api.interceptors.request.use(async (config) => {
   let { data: { session } } = await supabase.auth.getSession();
 

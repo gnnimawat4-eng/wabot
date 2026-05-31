@@ -23,8 +23,9 @@ async function setProfilePhoto(phoneNumberId, accessToken, imageBuffer) {
   });
 
   const uploadData = await uploadRes.json();
+  console.log('[WA] media upload response:', JSON.stringify(uploadData));
   if (!uploadRes.ok || !uploadData.id) {
-    const msg = uploadData?.error?.message || 'Media upload failed';
+    const msg = uploadData?.error?.message || `Media upload failed (HTTP ${uploadRes.status})`;
     throw new Error(msg);
   }
 
@@ -36,8 +37,9 @@ async function setProfilePhoto(phoneNumberId, accessToken, imageBuffer) {
   });
 
   const profileData = await profileRes.json();
+  console.log('[WA] set profile photo response:', JSON.stringify(profileData));
   if (!profileRes.ok) {
-    throw new Error(profileData?.error?.message || 'Failed to set profile photo');
+    throw new Error(profileData?.error?.message || `Failed to set profile photo (HTTP ${profileRes.status})`);
   }
 
   return { success: true, mediaId: uploadData.id };
@@ -60,16 +62,21 @@ async function updateBusinessProfile(phoneNumberId, accessToken, fields) {
   const allowed = ['about', 'description', 'email', 'websites', 'vertical', 'address'];
   const payload = { messaging_product: 'whatsapp' };
   for (const key of allowed) {
-    if (fields[key] !== undefined) payload[key] = fields[key];
+    // Skip undefined AND empty strings — Meta API rejects empty string fields
+    if (fields[key] !== undefined && fields[key] !== '' && fields[key] !== null) {
+      payload[key] = fields[key];
+    }
   }
 
+  console.log('[WA] updateBusinessProfile payload:', JSON.stringify(payload));
   const res = await fetch(`${GQL}/${phoneNumberId}/whatsapp_business_profile`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.error?.message || 'Failed to update profile');
+  console.log('[WA] updateBusinessProfile response:', JSON.stringify(data));
+  if (!res.ok) throw new Error(data?.error?.message || `Failed to update profile (HTTP ${res.status})`);
   return { success: true };
 }
 

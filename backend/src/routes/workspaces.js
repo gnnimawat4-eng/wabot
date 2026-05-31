@@ -427,7 +427,8 @@ module.exports = async function workspaceRoutes(fastify) {
 
     const phoneId = ws.phone_number_id;
     const token   = ws.access_token;
-    if (!phoneId || !token) return reply.code(400).send({ error: 'WhatsApp not connected' });
+    if (!phoneId) return reply.code(400).send({ error: 'Phone Number ID not saved. Fill in the WhatsApp Connection fields above and click "Save WhatsApp" first.' });
+    if (!token)   return reply.code(400).send({ error: 'Access Token not saved. Fill in the WhatsApp Connection fields above and click "Save WhatsApp" first.' });
 
     // Read uploaded file via @fastify/multipart
     let fileBuffer;
@@ -473,7 +474,8 @@ module.exports = async function workspaceRoutes(fastify) {
 
     const phoneId = ws.phone_number_id;
     const token   = ws.access_token;
-    if (!phoneId || !token) return reply.code(400).send({ error: 'WhatsApp not connected' });
+    if (!phoneId) return reply.code(400).send({ error: 'Phone Number ID not saved. Fill in the WhatsApp Connection fields above and click "Save WhatsApp" first.' });
+    if (!token)   return reply.code(400).send({ error: 'Access Token not saved. Fill in the WhatsApp Connection fields above and click "Save WhatsApp" first.' });
 
     const { about, description, email, website, vertical } = req.body || {};
 

@@ -718,13 +718,24 @@ export default function SettingsPage() {
                                   <Button
                                     className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
                                     style={{ color: '#fff' }}
-                                    onClick={() => uploadPhoto.mutate()}
+                                    onClick={() => {
+                                      if (!activeWorkspace?.wa_phone_number_id || !activeWorkspace?.wa_access_token) {
+                                        toast.error('Please save your WhatsApp credentials first — fill in Phone Number ID and Access Token above, then click "Save WhatsApp".');
+                                        return;
+                                      }
+                                      uploadPhoto.mutate();
+                                    }}
                                     disabled={uploadPhoto.isPending}>
                                     {uploadPhoto.isPending ? 'Uploading…' : 'Save Photo'}
                                   </Button>
                                 )}
                               </div>
-                              {photoFile && (
+                              {photoFile && !activeWorkspace?.wa_access_token && (
+                                <p className="text-[10px] mt-1.5 text-amber-500">
+                                  ⚠ Save your WhatsApp access token above before uploading
+                                </p>
+                              )}
+                              {photoFile && activeWorkspace?.wa_access_token && (
                                 <p className="text-[10px] mt-1.5" style={{ color: '#f59e0b' }}>
                                   Unsaved — click "Save Photo" to apply
                                 </p>
@@ -794,11 +805,17 @@ export default function SettingsPage() {
                           </select>
                         </Field>
 
+                        {/* Warn if WhatsApp credentials aren't saved to DB yet */}
+                        {(!activeWorkspace?.wa_phone_number_id || !activeWorkspace?.wa_access_token) && (
+                          <div className="rounded-lg px-3 py-2 text-xs" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b' }}>
+                            ⚠ Fill in Phone Number ID and Access Token above, then click &quot;Save WhatsApp&quot; before saving the profile.
+                          </div>
+                        )}
                         <Button
                           className="bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
                           style={{ color: '#ffffff' }}
                           onClick={() => saveProfile.mutate()}
-                          disabled={saveProfile.isPending || !waForm.wa_phone_number_id || !waForm.wa_access_token}>
+                          disabled={saveProfile.isPending || !activeWorkspace?.wa_phone_number_id || !activeWorkspace?.wa_access_token}>
                           {saveProfile.isPending ? 'Saving…' : 'Save Profile'}
                         </Button>
                       </div>
