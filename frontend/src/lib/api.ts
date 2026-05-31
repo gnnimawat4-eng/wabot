@@ -30,6 +30,19 @@ export const updateWorkspace = (id: string, data: Record<string, unknown>) =>
 export const deleteWorkspace = (id: string) => api.delete(`/workspaces/${id}`);
 export const getWorkspaceStats = (id: string) => api.get(`/workspaces/${id}/stats`).then((r) => r.data);
 
+// WhatsApp Business Profile
+export const getWAProfile = (workspaceId: string) =>
+  api.get(`/workspaces/${workspaceId}/whatsapp-profile`).then((r) => r.data);
+export const updateWAProfile = (workspaceId: string, data: Record<string, unknown>) =>
+  api.post(`/workspaces/${workspaceId}/whatsapp-profile`, data).then((r) => r.data);
+export const uploadWAProfilePhoto = (workspaceId: string, file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post(`/workspaces/${workspaceId}/whatsapp-profile/photo`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data);
+};
+
 // Trash
 export const getTrash = (workspaceId: string) =>
   api.get(`/workspaces/${workspaceId}/trash`).then((r) => r.data);

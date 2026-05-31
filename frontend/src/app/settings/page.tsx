@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, Check, AlertTriangle, Trash2, RotateCcw, Palette, Lock, ShieldCheck } from 'lucide-react';
+import { Bot, Check, AlertTriangle, Trash2, RotateCcw, Palette, Lock, ShieldCheck, Upload, RefreshCw } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useWorkspaceStore } from '@/lib/store';
-import { createWorkspace, updateWorkspace, getSubscription, createSubscription, getTrash, restoreTrashItem, permanentDeleteTrashItem } from '@/lib/api';
+import { createWorkspace, updateWorkspace, getSubscription, createSubscription, getTrash, restoreTrashItem, permanentDeleteTrashItem, getWAProfile, updateWAProfile, uploadWAProfilePhoto } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { BUSINESS_TYPES, type BusinessType } from '@/lib/businessConfig';
 import { useTheme, useAccent, type AccentKey, ACCENT_DEFS, type Theme } from '@/app/providers';
@@ -227,6 +227,10 @@ export default function SettingsPage() {
 
   const [wsName, setWsName] = useState('');
   const [waForm, setWaForm] = useState({ wa_phone_number_id: '', wa_phone_number: '', wa_access_token: '', wa_business_id: '' });
+  const [profileForm, setProfileForm] = useState({ about: '', description: '', email: '', website: '', vertical: '' });
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [businessType, setBusinessType] = useState<BusinessType | null>(null);
   const [btChanged, setBtChanged] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(true);
@@ -253,6 +257,15 @@ export default function SettingsPage() {
       setSystemPrompt(activeWorkspace.ai_system_prompt ?? '');
       setBusinessType((activeWorkspace.business_type as BusinessType) ?? null);
       setBtChanged(false);
+      const ws = activeWorkspace as unknown as Record<string, string | null>;
+      setProfileForm({
+        about:       ws.wa_about                ?? '',
+        description: ws.wa_business_description ?? '',
+        email:       ws.wa_business_email       ?? '',
+        website:     ws.wa_business_website     ?? '',
+        vertical:    ws.wa_business_vertical    ?? '',
+      });
+      setPhotoPreview(ws.wa_profile_photo_url ?? null);
     }
     const stored = localStorage.getItem('wabot_ai_settings');
     if (stored) {
@@ -304,6 +317,38 @@ export default function SettingsPage() {
     mutationFn: () => updateWorkspace(activeWorkspace!.id, waForm),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['workspaces'] }); toast.success('WhatsApp settings saved'); },
     onError: () => toast.error('Failed to save'),
+  });
+
+  const syncProfile = useMutation({
+    mutationFn: () => getWAProfile(activeWorkspace!.id),
+    onSuccess: (data) => {
+      setProfileForm({
+        about:       data.about       ?? '',
+        description: data.description ?? '',
+        email:       data.email       ?? '',
+        website:     (data.websites || [])[0] ?? '',
+        vertical:    data.vertical    ?? '',
+      });
+      if (data.profile_picture_url) setPhotoPreview(data.profile_picture_url);
+      toast.success('Profile synced from WhatsApp');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to sync profile'),
+  });
+
+  const saveProfile = useMutation({
+    mutationFn: () => updateWAProfile(activeWorkspace!.id, profileForm),
+    onSuccess: () => toast.success('Business profile updated! Changes visible in 5–10 minutes.'),
+    onError: (e: Error) => toast.error(e.message || 'Failed to update profile'),
+  });
+
+  const uploadPhoto = useMutation({
+    mutationFn: () => uploadWAProfilePhoto(activeWorkspace!.id, photoFile!),
+    onSuccess: (data) => {
+      if (data.photo_url) setPhotoPreview(data.photo_url);
+      setPhotoFile(null);
+      toast.success('Profile photo updated! Changes visible in 5–10 minutes.');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Failed to upload photo'),
   });
 
   const { data: sub } = useQuery({
@@ -373,6 +418,31 @@ export default function SettingsPage() {
       rzp.open();
     } catch { toast.error('Payment setup failed'); }
   };
+
+  const handlePhotoChange = (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Only image files are allowed'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5 MB'); return; }
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => setPhotoPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const WA_VERTICALS = [
+    { value: 'HOTEL',                label: 'Hotel' },
+    { value: 'RESTAURANT',           label: 'Restaurant / Cafe' },
+    { value: 'EDUCATION',            label: 'Education' },
+    { value: 'ENTERTAINMENT',        label: 'Entertainment' },
+    { value: 'FINANCE',              label: 'Finance' },
+    { value: 'GROCERY',              label: 'Grocery' },
+    { value: 'HEALTH',               label: 'Health / Medical' },
+    { value: 'NONPROFIT',            label: 'Non-profit' },
+    { value: 'PROFESSIONAL_SERVICES', label: 'Professional Services' },
+    { value: 'SHOPPING',             label: 'Shopping / Retail' },
+    { value: 'TRAVEL',               label: 'Travel' },
+    { value: 'OTHER',                label: 'Other' },
+  ];
 
   const webhookUrl = typeof window !== 'undefined' ? `${process.env.NEXT_PUBLIC_API_URL}/webhook/whatsapp` : '';
 
@@ -552,32 +622,232 @@ export default function SettingsPage() {
               {!activeWorkspace ? (
                 <p className="text-sm" style={{ color: 'var(--wb-text-3)' }}>Create a workspace first in Workspace Settings.</p>
               ) : (
-                <div className="space-y-4">
-                  <Field label="Phone Number ID" hint="From Meta Business Manager → WhatsApp Accounts">
-                    <input className={inp} style={inpStyle} placeholder="e.g. 123456789012345"
-                      value={waForm.wa_phone_number_id} onChange={(e) => setWaForm({ ...waForm, wa_phone_number_id: e.target.value })} />
-                  </Field>
-                  <Field label="WhatsApp Business Account ID (WABA ID)">
-                    <input className={inp} style={inpStyle} placeholder="e.g. 987654321098765"
-                      value={waForm.wa_business_id} onChange={(e) => setWaForm({ ...waForm, wa_business_id: e.target.value })} />
-                  </Field>
-                  <Field label="Display Phone Number">
-                    <input className={inp} style={inpStyle} placeholder="+91 99999 99999"
-                      value={waForm.wa_phone_number} onChange={(e) => setWaForm({ ...waForm, wa_phone_number: e.target.value })} />
-                  </Field>
-                  <Field label="Access Token">
-                    <input className={inp} style={inpStyle} type="password" placeholder="Permanent or temporary access token"
-                      value={waForm.wa_access_token} onChange={(e) => setWaForm({ ...waForm, wa_access_token: e.target.value })} />
-                  </Field>
-                  <Field label="Webhook URL (copy to Meta)" hint="Set this as your webhook URL in Meta's WhatsApp settings">
-                    <input className={`${inp} font-mono text-xs opacity-60`} style={inpStyle} readOnly value={webhookUrl} />
-                  </Field>
-                  <Button className="bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
-                    style={{ color: '#ffffff' }}
-                    onClick={() => saveWa.mutate()} disabled={saveWa.isPending}>
-                    {saveWa.isPending ? 'Saving…' : 'Save'}
-                  </Button>
-                </div>
+                <>
+                  {/* ── API credentials ── */}
+                  <div className="space-y-4">
+                    <Field label="Phone Number ID" hint="From Meta Business Manager → WhatsApp Accounts">
+                      <input className={inp} style={inpStyle} placeholder="e.g. 123456789012345"
+                        value={waForm.wa_phone_number_id} onChange={(e) => setWaForm({ ...waForm, wa_phone_number_id: e.target.value })} />
+                    </Field>
+                    <Field label="WhatsApp Business Account ID (WABA ID)">
+                      <input className={inp} style={inpStyle} placeholder="e.g. 987654321098765"
+                        value={waForm.wa_business_id} onChange={(e) => setWaForm({ ...waForm, wa_business_id: e.target.value })} />
+                    </Field>
+                    <Field label="Display Phone Number">
+                      <input className={inp} style={inpStyle} placeholder="+91 99999 99999"
+                        value={waForm.wa_phone_number} onChange={(e) => setWaForm({ ...waForm, wa_phone_number: e.target.value })} />
+                    </Field>
+                    <Field label="Access Token">
+                      <input className={inp} style={inpStyle} type="password" placeholder="Permanent or temporary access token"
+                        value={waForm.wa_access_token} onChange={(e) => setWaForm({ ...waForm, wa_access_token: e.target.value })} />
+                    </Field>
+                    <Field label="Webhook URL (copy to Meta)" hint="Set this as your webhook URL in Meta's WhatsApp settings">
+                      <input className={`${inp} font-mono text-xs opacity-60`} style={inpStyle} readOnly value={webhookUrl} />
+                    </Field>
+                    <Button className="bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
+                      style={{ color: '#ffffff' }}
+                      onClick={() => saveWa.mutate()} disabled={saveWa.isPending}>
+                      {saveWa.isPending ? 'Saving…' : 'Save WhatsApp'}
+                    </Button>
+                  </div>
+
+                  <Divider />
+
+                  {/* ── Business Profile ── */}
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-sm font-semibold" style={{ color: 'var(--wb-text)' }}>WhatsApp Business Profile</h3>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--wb-text-3)' }}>What customers see when they open your chat</p>
+                      </div>
+                      <button
+                        onClick={() => syncProfile.mutate()}
+                        disabled={!waForm.wa_phone_number_id || !waForm.wa_access_token || syncProfile.isPending}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+                        style={{ background: 'var(--wb-bg-hover)', color: 'var(--wb-text-2)', border: '1px solid var(--wb-border)' }}>
+                        <RefreshCw className={`h-3 w-3 ${syncProfile.isPending ? 'animate-spin' : ''}`} />
+                        {syncProfile.isPending ? 'Syncing…' : 'Sync from WhatsApp'}
+                      </button>
+                    </div>
+
+                    <div className="flex gap-6">
+                      {/* Left: form */}
+                      <div className="flex-1 space-y-4">
+                        {/* Photo upload */}
+                        <div>
+                          <label className="block text-sm font-medium mb-2" style={{ color: 'var(--wb-text-2)' }}>Profile Photo</label>
+                          <div className="flex items-center gap-4">
+                            {/* Circular preview */}
+                            <div
+                              className="h-20 w-20 rounded-full shrink-0 flex items-center justify-center overflow-hidden cursor-pointer border-2 relative group"
+                              style={{ borderColor: 'var(--wb-accent)', background: 'var(--wb-bg-hover)' }}
+                              onClick={() => fileInputRef.current?.click()}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => { e.preventDefault(); handlePhotoChange(e.dataTransfer.files[0] ?? null); }}
+                            >
+                              {photoPreview ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={photoPreview} alt="Profile" className="w-full h-full object-cover" />
+                              ) : (
+                                <Upload className="h-6 w-6 opacity-30" style={{ color: 'var(--wb-text)' }} />
+                              )}
+                              <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Upload className="h-5 w-5 text-white" />
+                              </div>
+                            </div>
+
+                            <div className="flex-1">
+                              <p className="text-xs mb-2" style={{ color: 'var(--wb-text-3)' }}>
+                                JPEG or PNG · max 5 MB · auto-cropped to 640×640
+                              </p>
+                              <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                className="hidden"
+                                onChange={(e) => handlePhotoChange(e.target.files?.[0] ?? null)}
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => fileInputRef.current?.click()}
+                                  className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+                                  style={{ background: 'var(--wb-bg-hover)', color: 'var(--wb-text-2)', border: '1px solid var(--wb-border)' }}>
+                                  Choose photo
+                                </button>
+                                {photoFile && (
+                                  <Button
+                                    className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                                    style={{ color: '#fff' }}
+                                    onClick={() => uploadPhoto.mutate()}
+                                    disabled={uploadPhoto.isPending}>
+                                    {uploadPhoto.isPending ? 'Uploading…' : 'Save Photo'}
+                                  </Button>
+                                )}
+                              </div>
+                              {photoFile && (
+                                <p className="text-[10px] mt-1.5" style={{ color: '#f59e0b' }}>
+                                  Unsaved — click "Save Photo" to apply
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* About */}
+                        <Field label="About" hint="Shown below your business name on WhatsApp (max 139 chars)">
+                          <div className="relative">
+                            <input
+                              className={inp} style={inpStyle}
+                              maxLength={139}
+                              placeholder="e.g. Premium hotel in Dharamshala. Best views, best service 🏔️"
+                              value={profileForm.about}
+                              onChange={(e) => setProfileForm({ ...profileForm, about: e.target.value })}
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px]" style={{ color: 'var(--wb-text-3)' }}>
+                              {profileForm.about.length}/139
+                            </span>
+                          </div>
+                        </Field>
+
+                        {/* Description */}
+                        <Field label="Business Description" hint="Max 256 characters">
+                          <div className="relative">
+                            <textarea
+                              className={`${inp} resize-none`} style={inpStyle}
+                              rows={3} maxLength={256}
+                              placeholder="Describe your business to customers…"
+                              value={profileForm.description}
+                              onChange={(e) => setProfileForm({ ...profileForm, description: e.target.value })}
+                            />
+                            <span className="absolute right-2 bottom-2 text-[10px]" style={{ color: 'var(--wb-text-3)' }}>
+                              {profileForm.description.length}/256
+                            </span>
+                          </div>
+                        </Field>
+
+                        {/* Email */}
+                        <Field label="Business Email">
+                          <input className={inp} style={inpStyle} type="email"
+                            placeholder="contact@yourbusiness.com"
+                            value={profileForm.email}
+                            onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })} />
+                        </Field>
+
+                        {/* Website */}
+                        <Field label="Website URL">
+                          <input className={inp} style={inpStyle} type="url"
+                            placeholder="https://yourbusiness.com"
+                            value={profileForm.website}
+                            onChange={(e) => setProfileForm({ ...profileForm, website: e.target.value })} />
+                        </Field>
+
+                        {/* Category / Vertical */}
+                        <Field label="Business Category">
+                          <select
+                            className={inp} style={inpStyle}
+                            value={profileForm.vertical}
+                            onChange={(e) => setProfileForm({ ...profileForm, vertical: e.target.value })}>
+                            <option value="">— Select category —</option>
+                            {WA_VERTICALS.map((v) => (
+                              <option key={v.value} value={v.value}>{v.label}</option>
+                            ))}
+                          </select>
+                        </Field>
+
+                        <Button
+                          className="bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
+                          style={{ color: '#ffffff' }}
+                          onClick={() => saveProfile.mutate()}
+                          disabled={saveProfile.isPending || !waForm.wa_phone_number_id || !waForm.wa_access_token}>
+                          {saveProfile.isPending ? 'Saving…' : 'Save Profile'}
+                        </Button>
+                      </div>
+
+                      {/* Right: live preview */}
+                      <div className="w-48 shrink-0">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--wb-text-3)' }}>
+                          Preview
+                        </p>
+                        <div className="rounded-xl overflow-hidden shadow-lg" style={{ background: '#128C7E', border: '1px solid var(--wb-border)' }}>
+                          {/* Fake WhatsApp header */}
+                          <div className="flex items-center gap-2 px-3 py-2.5" style={{ background: '#075E54' }}>
+                            <div className="h-8 w-8 rounded-full overflow-hidden shrink-0 flex items-center justify-center" style={{ background: '#25D366' }}>
+                              {photoPreview
+                                ? <img src={photoPreview} alt="" className="w-full h-full object-cover" />
+                                : <span className="text-white text-xs font-bold">
+                                    {(waForm.wa_phone_number || 'B').slice(0, 1)}
+                                  </span>
+                              }
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-white text-xs font-semibold truncate">
+                                {waForm.wa_phone_number || 'Your Business'}
+                              </p>
+                              {profileForm.vertical && (
+                                <p className="text-green-200 text-[9px] truncate">
+                                  {WA_VERTICALS.find((v) => v.value === profileForm.vertical)?.label}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {/* Fake chat bubble */}
+                          <div className="px-3 py-3" style={{ background: '#ECE5DD' }}>
+                            {profileForm.about && (
+                              <p className="text-[10px] italic text-gray-600 mb-2 leading-tight">"{profileForm.about}"</p>
+                            )}
+                            <div className="rounded-lg px-2 py-1.5 max-w-[90%] ml-auto" style={{ background: '#DCF8C6' }}>
+                              <p className="text-[10px] text-gray-700">Hello! How can I help you?</p>
+                              <p className="text-[8px] text-gray-400 text-right mt-0.5">10:32 AM ✓✓</p>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-[9px] mt-2 text-center" style={{ color: 'var(--wb-text-3)' }}>
+                          How customers see your profile
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           )}

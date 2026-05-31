@@ -1,4 +1,5 @@
 const { supabase } = require('../services/supabase');
+const { setProfilePhoto, getProfilePhoto, updateBusinessProfile } = require('../services/whatsappProfile');
 
 // Maps live DB column names → frontend field names
 const toWorkspace = (row) => ({
@@ -12,6 +13,13 @@ const toWorkspace = (row) => ({
   ai_system_prompt: row.ai_system_prompt ?? null,
   business_type: row.business_type ?? null,
   onboarding_completed: row.onboarding_completed ?? false,
+  wa_profile_photo_url: row.wa_profile_photo_url ?? null,
+  wa_about: row.wa_about ?? null,
+  wa_business_description: row.wa_business_description ?? null,
+  wa_business_email: row.wa_business_email ?? null,
+  wa_business_website: row.wa_business_website ?? null,
+  wa_business_vertical: row.wa_business_vertical ?? null,
+  wa_profile_synced_at: row.wa_profile_synced_at ?? null,
   created_at: row.created_at,
   updated_at: row.updated_at,
 });
@@ -374,6 +382,127 @@ module.exports = async function workspaceRoutes(fastify) {
         contact_phone: m.contacts?.phone || '',
       })),
     };
+  });
+
+  // ── WhatsApp Business Profile ───────────────────────────────────────────────
+
+  // GET /workspaces/:id/whatsapp-profile — fetch from Meta + cache in DB
+  fastify.get('/:id/whatsapp-profile', auth, async (req, reply) => {
+    const { id } = req.params;
+    const { data: ws, error } = await supabase.from('workspaces').select('*').eq('id', id).single();
+    if (error) return reply.code(404).send({ error: 'Workspace not found' });
+
+    const phoneId = ws.phone_number_id;
+    const token   = ws.access_token;
+    if (!phoneId || !token) return reply.code(400).send({ error: 'WhatsApp not connected' });
+
+    try {
+      const profile = await getProfilePhoto(phoneId, token);
+      // Cache fetched values in DB
+      await supabase.from('workspaces').update({
+        wa_profile_photo_url:    profile.profile_picture_url ?? ws.wa_profile_photo_url,
+        wa_about:                profile.about               ?? ws.wa_about,
+        wa_business_description: profile.description         ?? ws.wa_business_description,
+        wa_business_email:       profile.email               ?? ws.wa_business_email,
+        wa_business_website:     (profile.websites || [])[0] ?? ws.wa_business_website,
+        wa_business_vertical:    profile.vertical            ?? ws.wa_business_vertical,
+        wa_profile_synced_at:    new Date().toISOString(),
+      }).eq('id', id);
+      return { ...profile, synced_at: new Date().toISOString() };
+    } catch (err) {
+      const msg = err.message || '';
+      if (msg.includes('OAuthException') || msg.includes('access token')) {
+        return reply.code(401).send({ error: 'Access token expired. Please reconnect WhatsApp in settings.' });
+      }
+      console.error('WA profile fetch error:', msg);
+      return reply.code(500).send({ error: msg || 'Failed to fetch WhatsApp profile' });
+    }
+  });
+
+  // POST /workspaces/:id/whatsapp-profile/photo — upload multipart image, resize, set on WA
+  fastify.post('/:id/whatsapp-profile/photo', auth, async (req, reply) => {
+    const { id } = req.params;
+    const { data: ws, error } = await supabase.from('workspaces').select('phone_number_id, access_token').eq('id', id).single();
+    if (error) return reply.code(404).send({ error: 'Workspace not found' });
+
+    const phoneId = ws.phone_number_id;
+    const token   = ws.access_token;
+    if (!phoneId || !token) return reply.code(400).send({ error: 'WhatsApp not connected' });
+
+    // Read uploaded file via @fastify/multipart
+    let fileBuffer;
+    try {
+      const data = await req.file();
+      if (!data) return reply.code(400).send({ error: 'No file uploaded' });
+      const mimetype = data.mimetype || '';
+      if (!mimetype.startsWith('image/')) return reply.code(400).send({ error: 'Only image files are allowed' });
+      fileBuffer = await data.toBuffer();
+      if (fileBuffer.length > 5 * 1024 * 1024) return reply.code(400).send({ error: 'Image must be under 5 MB' });
+    } catch (err) {
+      return reply.code(400).send({ error: err.message || 'Failed to read uploaded file' });
+    }
+
+    try {
+      const result = await setProfilePhoto(phoneId, token, fileBuffer);
+      // Re-fetch updated profile to get the new photo URL
+      let photoUrl = null;
+      try {
+        const refreshed = await getProfilePhoto(phoneId, token);
+        photoUrl = refreshed.profile_picture_url ?? null;
+      } catch { /* non-critical */ }
+      await supabase.from('workspaces').update({ wa_profile_photo_url: photoUrl, wa_profile_synced_at: new Date().toISOString() }).eq('id', id);
+      return { success: true, photo_url: photoUrl, mediaId: result.mediaId };
+    } catch (err) {
+      const msg = err.message || '';
+      console.error('WA photo upload error:', msg);
+      if (msg.includes('OAuthException') || msg.includes('access token')) {
+        return reply.code(401).send({ error: 'Access token expired. Please reconnect WhatsApp in settings.' });
+      }
+      if (msg.includes('verified') || msg.includes('Phone number')) {
+        return reply.code(400).send({ error: 'Phone number must be verified in Meta Business Manager.' });
+      }
+      return reply.code(500).send({ error: msg || 'Failed to update profile photo' });
+    }
+  });
+
+  // POST /workspaces/:id/whatsapp-profile — update business text info
+  fastify.post('/:id/whatsapp-profile', auth, async (req, reply) => {
+    const { id } = req.params;
+    const { data: ws, error } = await supabase.from('workspaces').select('phone_number_id, access_token').eq('id', id).single();
+    if (error) return reply.code(404).send({ error: 'Workspace not found' });
+
+    const phoneId = ws.phone_number_id;
+    const token   = ws.access_token;
+    if (!phoneId || !token) return reply.code(400).send({ error: 'WhatsApp not connected' });
+
+    const { about, description, email, website, vertical } = req.body || {};
+
+    try {
+      await updateBusinessProfile(phoneId, token, {
+        about,
+        description,
+        email,
+        websites:  website ? [website] : undefined,
+        vertical,
+      });
+      // Persist to DB
+      await supabase.from('workspaces').update({
+        wa_about:                about       ?? null,
+        wa_business_description: description ?? null,
+        wa_business_email:       email       ?? null,
+        wa_business_website:     website     ?? null,
+        wa_business_vertical:    vertical    ?? null,
+        wa_profile_synced_at:    new Date().toISOString(),
+      }).eq('id', id);
+      return { success: true };
+    } catch (err) {
+      const msg = err.message || '';
+      console.error('WA profile update error:', msg);
+      if (msg.includes('OAuthException') || msg.includes('access token')) {
+        return reply.code(401).send({ error: 'Access token expired. Please reconnect WhatsApp in settings.' });
+      }
+      return reply.code(500).send({ error: msg || 'Failed to update business profile' });
+    }
   });
 
   fastify.get('/:id/stats', auth, async (req) => {
