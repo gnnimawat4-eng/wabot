@@ -35,7 +35,7 @@ export function FlowBuilder({
   onSelectNode, onNodesChange, onSave, onOpenAI, onNameChange,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [zoom, setZoom] = useState(0.85);
+  const [zoom, setZoom] = useState(1.0);
   const [pan, setPan] = useState({ x: 300, y: 60 });
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
@@ -51,14 +51,23 @@ export function FlowBuilder({
     if (!ns.length || !svgRef.current) return;
     const rect = svgRef.current.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
+
+    // Single node: center at 100% — never zoom in on one lonely node
+    if (ns.length === 1) {
+      setZoom(1.0);
+      setPan({ x: rect.width / 2 - NODE_W / 2, y: 60 });
+      return;
+    }
+
     const minX = Math.min(...ns.map((n) => n.x));
     const maxX = Math.max(...ns.map((n) => n.x + NODE_W));
     const minY = Math.min(...ns.map((n) => n.y));
     const maxY = Math.max(...ns.map((n) => n.y + NODE_H));
-    const pad = 40;
+    const pad = 60;
     const contentW = maxX - minX || 1;
     const contentH = maxY - minY || 1;
-    const z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM,
+    // Never exceed 100% on auto-fit — only zoom out to fit, never zoom in
+    const z = Math.min(1.0, Math.max(MIN_ZOOM,
       Math.min((rect.width - pad * 2) / contentW, (rect.height - pad * 2) / contentH)
     ));
     setPan({ x: rect.width / 2 - ((minX + maxX) / 2) * z, y: rect.height / 2 - ((minY + maxY) / 2) * z });
