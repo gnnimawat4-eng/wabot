@@ -78,6 +78,31 @@ export function AIGenerator({ workspaceId, onImport, onClose }: Props) {
     const nodes: Record<string, CanvasNode> = {};
     const rootIds: string[] = [];
 
+    // If the AI returned branch nodes at the top level instead of nesting them
+    // inside an on_reply, collapse them under a synthetic on_reply so the tree
+    // is always connected to a single root.
+    const topBranches = steps.filter((s) => s.type === 'branch');
+    const nonBranch   = steps.filter((s) => s.type !== 'branch');
+    let normalised = nonBranch;
+    if (topBranches.length > 0) {
+      const hasOnReply = nonBranch.some((s) => s.type === 'on_reply');
+      if (!hasOnReply) {
+        // Wrap orphaned branches in a synthetic on_reply
+        normalised = [
+          ...nonBranch,
+          { type: 'on_reply', label: 'Wait for reply', config: { message: 'Please choose an option:' }, children: topBranches },
+        ];
+      } else {
+        // Append branches to the first on_reply found
+        normalised = nonBranch.map((s) => {
+          if (s.type === 'on_reply' && (!s.children || s.children.length === 0)) {
+            return { ...s, children: topBranches };
+          }
+          return s;
+        });
+      }
+    }
+
     function add(s: AIGeneratedFlow['steps'][0], parentId: string | null) {
       const id = makeId();
       const nodeType = (['trigger','message','on_reply','branch','action'].includes(s.type) ? s.type : 'message') as CanvasNode['type'];
@@ -93,7 +118,7 @@ export function AIGenerator({ workspaceId, onImport, onClose }: Props) {
       for (const c of s.children || []) add(c, id);
     }
 
-    for (const s of steps) add(s, null);
+    for (const s of normalised) add(s, null);
     return { nodes: layoutNodes(rootIds, nodes), rootIds };
   }
 

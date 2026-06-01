@@ -23,15 +23,17 @@ module.exports = async function aiRoutes(fastify) {
     const countNum = count === 'full' ? 8 : Math.max(1, Math.min(10, parseInt(count) || 3));
 
     const systemPrompt = `You are a WhatsApp chatbot flow expert for Indian SMEs.
-Generate SHORT, PRACTICAL flows. Rules:
-- First message = welcome + numbered menu MAX 5 options
-- Each option = ONE short reply (max 2 lines, no essays)
-- Use simple Hindi-English mix if businessType is Indian
-- Branch nodes must have reply_contains like "1", "2", "book" etc
-- Keep every message under 100 words
-- Return ONLY a valid JSON array, no explanation, no markdown
 
-Return format:
+CRITICAL RULES — read carefully:
+1. Generate EXACTLY ONE self-contained flow per array item. ALL menu options and sub-menus MUST be nested as branch children inside that single flow. NEVER create a separate flow object for a sub-category or menu section.
+2. Every branch node is a CHILD of the on_reply node — siblings in the "children" array, NOT separate top-level flows.
+3. First message = welcome + numbered menu (max 5 options).
+4. Each branch reply = max 2 short lines. No essays.
+5. Use Hindi-English mix for Indian businesses.
+6. Keep every message under 100 words.
+7. Return ONLY a valid JSON array — no explanation, no markdown fences.
+
+CORRECT structure — ALL branches as siblings inside one on_reply:
 [
   {
     "name": "Main Menu",
@@ -45,18 +47,37 @@ Return format:
       {
         "type": "on_reply",
         "label": "Wait for choice",
-        "config": { "message": "Please choose 1-4" },
+        "config": { "message": "Reply 1-4 to continue" },
         "children": [
           {
             "type": "branch",
-            "label": "Menu selected",
-            "config": { "reply_contains": "1", "message": "Our menu:\\n🍛 Dal Makhani - ₹180\\n🍗 Butter Chicken - ₹320\\nOrder: 98765-43210" }
+            "label": "Menu",
+            "config": { "reply_contains": "1", "message": "🍛 Dal Makhani ₹180\\n🍗 Butter Chicken ₹320\\nOrder: 98765-43210" }
+          },
+          {
+            "type": "branch",
+            "label": "Book Table",
+            "config": { "reply_contains": "2", "message": "📅 To book: call 98765-43210 or reply with date & time!" }
+          },
+          {
+            "type": "branch",
+            "label": "Timings",
+            "config": { "reply_contains": "3", "message": "🕐 Open Mon-Sun, 11 AM – 11 PM. Last order 10:30 PM." }
+          },
+          {
+            "type": "branch",
+            "label": "Location",
+            "config": { "reply_contains": "4", "message": "📍 123 Main St, near Metro Station. Google Maps: [link]" }
           }
         ]
       }
     ]
   }
-]`;
+]
+
+WRONG — never do this (sub-menus as separate top-level flows):
+[ { "name": "Main Menu", ... }, { "name": "Food Menu", ... }, { "name": "Booking", ... } ]
+That is WRONG. All of those must be branch children inside ONE flow.`;
 
     const biz = businessName?.trim() || 'this business';
     const bt  = businessType  || 'general';
@@ -66,7 +87,10 @@ Business type: ${bt}
 Description: ${description.trim()}
 
 Generate ${countNum} WhatsApp chatbot flow${countNum > 1 ? 's' : ''} for this business.
-Each flow should handle a different use case relevant to the business.
+${countNum > 1
+  ? `Each flow must handle a COMPLETELY DIFFERENT use case (e.g. "Main Menu", "Complaint", "Track Order" — NOT sub-sections of the same menu).
+Each flow is fully self-contained: its own trigger keywords, its own welcome message, and ALL its branches nested as children inside that single flow.`
+  : 'The flow must be fully self-contained with ALL menu options as branch children of one on_reply node — no sub-menus split into separate flows.'}
 Use actual details from the description (prices, timings, phone numbers, etc).
 Return ONLY the JSON array, nothing else.`;
 
