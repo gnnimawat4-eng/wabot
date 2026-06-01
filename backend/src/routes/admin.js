@@ -1,4 +1,5 @@
 const { supabase } = require('../services/supabase');
+const { logError } = require('../services/errorLogger');
 
 const ADMIN_EMAIL = 'gnnimawat4@gmail.com';
 
@@ -64,25 +65,109 @@ module.exports = async function adminRoutes(fastify) {
     return data ?? [];
   });
 
-  // All workspaces — enriched with owner email, contact count, subscription + is_active status
+  // ── Analytics overview ─────────────────────────────────────────────────────
+  fastify.get('/analytics/overview', adminAuth, async () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const d30 = new Date(Date.now() - 30 * 86400000).toISOString();
+
+    const [
+      { count: totalMessages },
+      { count: messagesToday },
+      { count: activeWorkspaces },
+      { data: activeSubs },
+      { data: wsTypes },
+      { data: msgCounts30d },
+      { data: topWs },
+      { data: { users }, error: usersErr },
+    ] = await Promise.all([
+      supabase.from('messages').select('id', { count: 'exact', head: true }),
+      supabase.from('messages').select('id', { count: 'exact', head: true }).gte('created_at', todayStr),
+      supabase.from('workspaces').select('id', { count: 'exact', head: true }).eq('is_active', true).is('deleted_at', null),
+      supabase.from('subscriptions').select('amount').eq('status', 'active'),
+      supabase.from('workspaces').select('business_type').is('deleted_at', null),
+      supabase.rpc('get_daily_message_counts'),
+      supabase.rpc('admin_top_workspaces'),
+      supabase.auth.admin.listUsers({ perPage: 1000 }),
+    ]);
+
+    if (usersErr) console.error('Admin list users error:', usersErr?.message);
+
+    const emailMap = Object.fromEntries((users || []).map((u) => [u.id, u.email]));
+
+    // Build 30-day date scaffold (always 30 entries even with no data)
+    const now = new Date();
+    const scaffold = {};
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 86400000);
+      scaffold[`${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`] = 0;
+    }
+    const msgMap = { ...scaffold };
+    for (const r of (msgCounts30d || [])) msgMap[r.date] = Number(r.cnt);
+    const messages_last_30_days = Object.entries(msgMap).map(([date, count]) => ({ date, count }));
+
+    // New users last 30 days
+    const userMap = { ...scaffold };
+    for (const u of (users || [])) {
+      if (new Date(u.created_at) >= new Date(d30)) {
+        const d = new Date(u.created_at);
+        const key = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        if (key in userMap) userMap[key]++;
+      }
+    }
+    const new_users_last_30_days = Object.entries(userMap).map(([date, count]) => ({ date, count }));
+
+    // Business type breakdown
+    const typeMap = {};
+    for (const ws of (wsTypes || [])) {
+      const t = ws.business_type || 'other';
+      typeMap[t] = (typeMap[t] || 0) + 1;
+    }
+    const business_type_breakdown = Object.entries(typeMap).map(([type, count]) => ({ type, count }));
+
+    return {
+      total_users:             users?.length ?? 0,
+      active_workspaces:       activeWorkspaces ?? 0,
+      total_messages:          totalMessages ?? 0,
+      monthly_revenue:         (activeSubs || []).reduce((s, r) => s + (r.amount || 0), 0),
+      new_users_today:         (users || []).filter((u) => u.created_at?.startsWith(todayStr)).length,
+      messages_today:          messagesToday ?? 0,
+      new_users_last_30_days,
+      messages_last_30_days,
+      business_type_breakdown,
+      top_workspaces: (topWs || []).map((w) => ({
+        id:           w.id,
+        name:         w.name,
+        message_count: Number(w.message_count),
+        owner_email:  emailMap[w.owner_id] ?? '—',
+      })),
+    };
+  });
+
+  // ── All workspaces (enriched) ───────────────────────────────────────────────
   fastify.get('/workspaces', adminAuth, async () => {
     const [
       { data: workspaces },
       { data: subs },
       { data: contactCounts },
+      { data: msgCounts },
+      { data: lastMsgTimes },
       { data: { users }, error: usersError },
     ] = await Promise.all([
       supabase.from('workspaces').select('*').is('deleted_at', null).order('created_at', { ascending: false }).limit(1000),
       supabase.from('subscriptions').select('workspace_id, plan, status, trial_ends_at'),
       supabase.rpc('get_contact_counts'),
+      supabase.rpc('get_message_counts'),
+      supabase.rpc('get_last_message_times'),
       supabase.auth.admin.listUsers({ perPage: 1000 }),
     ]);
 
     if (usersError) console.error('Admin list users error:', usersError.message);
 
-    const emailMap = Object.fromEntries((users || []).map((u) => [u.id, u.email]));
-    const subMap   = Object.fromEntries((subs || []).map((s) => [s.workspace_id, s]));
-    const countMap = Object.fromEntries((contactCounts || []).map((c) => [c.workspace_id, Number(c.contact_count)]));
+    const emailMap   = Object.fromEntries((users || []).map((u) => [u.id, u.email]));
+    const subMap     = Object.fromEntries((subs || []).map((s) => [s.workspace_id, s]));
+    const countMap   = Object.fromEntries((contactCounts || []).map((c) => [c.workspace_id, Number(c.contact_count)]));
+    const msgMap     = Object.fromEntries((msgCounts || []).map((c) => [c.workspace_id, Number(c.message_count)]));
+    const lastMsgMap = Object.fromEntries((lastMsgTimes || []).map((c) => [c.workspace_id, c.last_at]));
 
     return (workspaces || []).map((ws) => ({
       id:                 ws.id,
@@ -94,8 +179,55 @@ module.exports = async function adminRoutes(fastify) {
       created_at:         ws.created_at,
       owner_email:        emailMap[ws.user_id] ?? '—',
       contact_count:      countMap[ws.id] ?? 0,
+      message_count:      msgMap[ws.id] ?? 0,
+      last_active:        lastMsgMap[ws.id] ?? null,
       subscription:       subMap[ws.id] ?? null,
     }));
+  });
+
+  // ── Workspace detail drawer ─────────────────────────────────────────────────
+  fastify.get('/workspaces/:id/details', adminAuth, async (req, reply) => {
+    const { id } = req.params;
+    const { data: ws, error: wsErr } = await supabase.from('workspaces').select('*').eq('id', id).single();
+    if (wsErr || !ws) return reply.code(404).send({ error: 'Not found' });
+
+    const [
+      { count: msgCount },
+      { count: contactCount },
+      { count: flowCount },
+      { count: broadcastCount },
+      { data: recentMsgs },
+      { data: sub },
+      { data: { user } },
+    ] = await Promise.all([
+      supabase.from('messages').select('id', { count: 'exact', head: true }).eq('workspace_id', id),
+      supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('workspace_id', id).is('deleted_at', null),
+      supabase.from('flows').select('id', { count: 'exact', head: true }).eq('workspace_id', id).is('deleted_at', null),
+      supabase.from('broadcasts').select('id', { count: 'exact', head: true }).eq('workspace_id', id).is('deleted_at', null),
+      supabase.from('messages').select('body, direction, created_at').eq('workspace_id', id).order('created_at', { ascending: false }).limit(5),
+      supabase.from('subscriptions').select('*').eq('workspace_id', id).maybeSingle(),
+      supabase.auth.admin.getUserById(ws.user_id),
+    ]);
+
+    return {
+      workspace: {
+        id: ws.id, name: ws.name, business_type: ws.business_type,
+        is_active: ws.is_active, created_at: ws.created_at,
+        phone_number: ws.phone_number, upi_id: ws.upi_id,
+        deactivated_reason: ws.deactivated_reason, deactivated_at: ws.deactivated_at,
+        phone_number_id: ws.phone_number_id ? '••• connected' : null,
+      },
+      owner:          { email: user?.email ?? '—', created_at: user?.created_at ?? null },
+      stats:          { messages: msgCount ?? 0, contacts: contactCount ?? 0, flows: flowCount ?? 0, broadcasts: broadcastCount ?? 0 },
+      recent_messages: recentMsgs ?? [],
+      subscription:    sub,
+    };
+  });
+
+  // ── Error logs ──────────────────────────────────────────────────────────────
+  fastify.get('/error-logs', adminAuth, async () => {
+    const { data } = await supabase.from('error_logs').select('*').order('created_at', { ascending: false }).limit(50);
+    return data ?? [];
   });
 
   // Toggle workspace active/suspended status

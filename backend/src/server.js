@@ -39,7 +39,29 @@ app.decorate('authenticate', async (req, reply) => {
   req.user = { sub: user.id, email: user.email };
 });
 
-app.get('/health', async () => ({ status: 'ok', ts: Date.now() }));
+app.get('/health', async () => {
+  const { supabase } = require('./services/supabase');
+  const start = Date.now();
+  let dbStatus = 'ok', dbMs = 0;
+  try {
+    await supabase.from('workspaces').select('id').limit(1);
+    dbMs = Date.now() - start;
+  } catch { dbStatus = 'error'; }
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const { count: webhooksToday } = await supabase
+    .from('messages').select('id', { count: 'exact', head: true })
+    .gte('created_at', todayStr).eq('direction', 'inbound').catch(() => ({ count: 0 }));
+
+  return {
+    status: 'ok',
+    uptime:    Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    database:  { status: dbStatus, response_ms: dbMs },
+    webhooks_today: webhooksToday ?? 0,
+    email_configured: !!process.env.RESEND_API_KEY,
+  };
+});
 
 app.register(require('./routes/auth'),    { prefix: '/auth' });
 app.register(require('./routes/webhook'), { prefix: '/webhook' });

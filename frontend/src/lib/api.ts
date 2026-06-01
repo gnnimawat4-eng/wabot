@@ -206,5 +206,9 @@ export const getAdminErrors = () => api.get('/admin/errors').then((r) => r.data)
 export const getAdminWorkspaces = () => api.get('/admin/workspaces').then((r) => r.data);
 export const toggleWorkspace = (id: string, reason?: string) =>
   api.patch(`/admin/workspaces/${id}/toggle`, { reason }).then((r) => r.data);
+export const getAdminAnalytics = () => api.get('/admin/analytics/overview').then((r) => r.data);
+export const getAdminWorkspaceDetails = (id: string) => api.get(`/admin/workspaces/${id}/details`).then((r) => r.data);
+export const getAdminErrorLogs = () => api.get('/admin/error-logs').then((r) => r.data);
+export const getHealthStatus = () => api.get('/health').then((r) => r.data);
 
 export default api;
