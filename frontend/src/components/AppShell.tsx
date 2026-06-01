@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { getWorkspaces, createWorkspace, getContacts, getSubscription, deleteWorkspace } from '@/lib/api';
+import { getWorkspaces, createWorkspace, getContacts, getSubscription, deleteWorkspace, getOrders } from '@/lib/api';
+import { isRestaurantWorkspace } from '@/lib/businessConfig';
 import { useWorkspaceStore } from '@/lib/store';
 import { initials } from '@/lib/utils';
 import { getBusinessConfig, DEFAULT_NAV } from '@/lib/businessConfig';
@@ -257,6 +258,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     refetchInterval: 30_000,
   });
   const hasInboxActivity = (recentContacts?.data?.length ?? 0) > 0;
+
+  const isRestaurant = isRestaurantWorkspace(activeWorkspace?.business_type);
+  const { data: pendingPaymentOrders = [] } = useQuery<unknown[]>({
+    queryKey: ['orders-badge', activeWorkspace?.id],
+    queryFn: () => getOrders(activeWorkspace!.id, 'payment_received'),
+    enabled: !!activeWorkspace && isRestaurant,
+    refetchInterval: 30_000,
+  });
+  const hasOrderBadge = pendingPaymentOrders.length > 0;
 
   const autoCreate = useMutation({
     mutationFn: () => createWorkspace('My Workspace'),
@@ -606,7 +616,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {nav.map(({ href, label, emoji }) => (
               <NavItem key={href + label} href={href} label={label} emoji={emoji} active={isActive(href)}
                 collapsed={collapsed}
-                dot={href.includes('/inbox') && hasInboxActivity && !pathname.startsWith('/inbox')} />
+                dot={
+                  (href.includes('/inbox') && hasInboxActivity && !pathname.startsWith('/inbox')) ||
+                  (href.includes('/orders') && hasOrderBadge && !pathname.startsWith('/orders'))
+                } />
             ))}
             {isAdmin && (
               <NavItem href="/admin" label="Admin Panel" emoji="🛡️" active={pathname.startsWith('/admin')} collapsed={collapsed} />

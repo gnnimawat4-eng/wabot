@@ -187,6 +187,18 @@ export const createOrder = (workspaceId: string, plan: string) =>
   api.post('/billing/create-order', { plan, workspaceId }).then((r) => r.data);
 
 // Admin (gnnimawat4@gmail.com only)
+// UPI Orders
+export const getOrders = (workspaceId: string, status?: string) =>
+  api.get(`/workspaces/${workspaceId}/orders`, { params: status && status !== 'all' ? { status } : {} }).then((r) => r.data);
+export const createUpiOrder = (workspaceId: string, data: Record<string, unknown>) =>
+  api.post(`/workspaces/${workspaceId}/orders`, data).then((r) => r.data);
+export const confirmOrder = (workspaceId: string, orderId: string) =>
+  api.patch(`/workspaces/${workspaceId}/orders/${orderId}/confirm`).then((r) => r.data);
+export const rejectOrder = (workspaceId: string, orderId: string) =>
+  api.patch(`/workspaces/${workspaceId}/orders/${orderId}/reject`).then((r) => r.data);
+export const updateOrderStatus = (workspaceId: string, orderId: string, status: string) =>
+  api.patch(`/workspaces/${workspaceId}/orders/${orderId}/status`, { status }).then((r) => r.data);
+
 export const getAdminOverview = () => api.get('/admin/overview').then((r) => r.data);
 export const getAdminCustomers = () => api.get('/admin/customers').then((r) => r.data);
 export const getAdminRevenue = () => api.get('/admin/revenue').then((r) => r.data);

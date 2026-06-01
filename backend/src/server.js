@@ -44,6 +44,7 @@ app.get('/health', async () => ({ status: 'ok', ts: Date.now() }));
 app.register(require('./routes/auth'),    { prefix: '/auth' });
 app.register(require('./routes/webhook'), { prefix: '/webhook' });
 app.register(require('./routes/workspaces'), { prefix: '/workspaces' });
+app.register(require('./routes/orders'),    { prefix: '/workspaces' });
 app.register(require('./routes/contacts'), { prefix: '/workspaces' });
 app.register(require('./routes/flows'), { prefix: '/workspaces' });
 app.register(require('./routes/broadcasts'), { prefix: '/workspaces' });

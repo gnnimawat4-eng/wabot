@@ -12,6 +12,8 @@ export interface Workspace {
   ai_system_prompt?: string;
   business_type?: string | null;
   onboarding_completed?: boolean;
+  upi_id?: string | null;
+  upi_name?: string | null;
   created_at: string;
 }
 

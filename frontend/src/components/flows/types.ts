@@ -1,6 +1,6 @@
 // ── Node types ────────────────────────────────────────────────────────────────
 
-export type NodeType = 'trigger' | 'message' | 'on_reply' | 'branch' | 'action';
+export type NodeType = 'trigger' | 'message' | 'on_reply' | 'branch' | 'action' | 'payment';
 
 export interface NodeTypeConfig {
   label: string;
@@ -16,6 +16,7 @@ export const NODE_TYPES: Record<NodeType, NodeTypeConfig> = {
   on_reply: { label: 'On Reply',  icon: '↩',  bg: '#FAEEDA', border: '#BA7517', text: '#BA7517' },
   branch:   { label: 'Branch',    icon: '🔀', bg: '#FAECE7', border: '#993C1D', text: '#993C1D' },
   action:   { label: 'Action',    icon: '⚙',  bg: '#EEEDFE', border: '#534AB7', text: '#534AB7' },
+  payment:  { label: 'Payment',   icon: '💰', bg: '#E1F5EE', border: '#1D9E75', text: '#1D9E75' },
 };
 
 // Dark mode overrides (bg darkened, border unchanged)
@@ -25,6 +26,7 @@ export const NODE_TYPES_DARK: Record<NodeType, Partial<NodeTypeConfig>> = {
   on_reply: { bg: 'rgba(186,117,23,0.15)' },
   branch:   { bg: 'rgba(153,60,29,0.15)' },
   action:   { bg: 'rgba(83,74,183,0.15)' },
+  payment:  { bg: 'rgba(29,158,117,0.15)' },
 };
 
 export const NODE_W = 164;
@@ -153,7 +155,7 @@ const STEP_TYPE_MAP: Record<string, NodeType> = {
   send_buttons:  'branch',
   update_stage:  'action',
 };
-const VALID_NODE_TYPES = new Set<string>(['trigger', 'message', 'on_reply', 'branch', 'action']);
+const VALID_NODE_TYPES = new Set<string>(['trigger', 'message', 'on_reply', 'branch', 'action', 'payment']);
 
 function normalizeStepType(t: string): NodeType {
   if (VALID_NODE_TYPES.has(t)) return t as NodeType;

@@ -148,6 +148,34 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
   console.log('=== FLOWS QUERY ===');
   console.log('Flows fetched:', JSON.stringify(flows, null, 2));
 
+  // Payment screenshot detection — restaurant workspaces only
+  if (msg.type === 'image') {
+    const { data: pendingOrder } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('phone_number', from)
+      .eq('status', 'pending_payment')
+      .eq('workspace_id', workspace.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (pendingOrder) {
+      await supabase.from('orders').update({
+        status:                'payment_received',
+        payment_screenshot_url: msg.image?.id || '',
+        updated_at:            new Date().toISOString(),
+      }).eq('id', pendingOrder.id);
+
+      if (workspace.access_token) {
+        await wa.sendText(phoneNumberId, workspace.access_token, from,
+          `📸 Payment screenshot received!\nWe are verifying your payment. Confirmation coming shortly ✅`
+        ).catch(() => {});
+      }
+      return; // Don't process further for this message
+    }
+  }
+
   // State machine: greeting / menu navigation handled here first
   const smConsumed = await handleConversation(contact, workspace, msgBody).catch((err) => {
     console.error('Conversation engine error:', err?.message); return false;

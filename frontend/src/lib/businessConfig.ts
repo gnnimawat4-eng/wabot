@@ -354,3 +354,11 @@ export const DEFAULT_NAV: NavItem[] = [
   { href: '/inbox', label: 'Inbox', emoji: '📥' },
   { href: '/settings', label: 'Settings', emoji: '⚙️' },
 ];
+
+
+// Returns true for restaurant/cafe/food business types
+export function isRestaurantWorkspace(businessType?: string | null): boolean {
+  return ['restaurant', 'cafe', 'food', 'dhaba', 'bakery'].includes(
+    (businessType ?? '').toLowerCase()
+  );
+}

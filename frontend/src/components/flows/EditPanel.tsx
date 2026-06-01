@@ -161,6 +161,41 @@ export function EditPanel({ node, isDark, onUpdate, onDelete, onAddChild }: Prop
           </div>
         )}
 
+        {/* Payment node */}
+        {node.type === 'payment' && (
+          <>
+            <div>
+              <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--wb-text-2)' }}>Amount Type</label>
+              <div className="flex gap-2">
+                {(['fixed', 'variable'] as const).map((t) => (
+                  <button key={t} onClick={() => { const c = { ...config, amount_type: t }; setConfig(c); commit({ config: c }); }}
+                    className="flex-1 py-1.5 text-xs rounded-lg capitalize transition-colors"
+                    style={config.amount_type === t
+                      ? { background: 'var(--wb-accent)', color: '#fff' }
+                      : { background: 'var(--wb-bg-hover)', color: 'var(--wb-text-2)', border: '1px solid var(--wb-border)' }}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {config.amount_type !== 'variable' && (
+              <div>
+                <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--wb-text-2)' }}>Amount (₹)</label>
+                <input className={inp} style={inpStyle} type="number" min="0"
+                  value={config.amount as string || ''}
+                  onChange={(e) => { const c = { ...config, amount: e.target.value }; setConfig(c); commit({ config: c }); }}
+                  placeholder="e.g. 299" />
+              </div>
+            )}
+            <div className="rounded-lg p-3 text-xs" style={{ background: 'var(--wb-bg-hover)', color: 'var(--wb-text-3)' }}>
+              <p className="font-medium mb-1" style={{ color: 'var(--wb-text-2)' }}>Message sent to customer:</p>
+              <p className="font-mono whitespace-pre-wrap leading-relaxed">
+                {`🛒 Order Total: ₹${config.amount_type === 'variable' ? '{amount}' : (config.amount || '0')}\n\n💳 Pay via UPI\n📸 Send screenshot to confirm`}
+              </p>
+            </div>
+          </>
+        )}
+
         <hr style={{ borderColor: borderCol }} />
 
         {/* Add child */}

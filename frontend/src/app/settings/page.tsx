@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useWorkspaceStore } from '@/lib/store';
 import { createWorkspace, updateWorkspace, getSubscription, createSubscription, getTrash, restoreTrashItem, permanentDeleteTrashItem, getWAProfile, updateWAProfile, uploadWAProfilePhoto } from '@/lib/api';
+import { isRestaurantWorkspace } from '@/lib/businessConfig';
 import { supabase } from '@/lib/supabase';
 import { BUSINESS_TYPES, type BusinessType } from '@/lib/businessConfig';
 import { useTheme, useAccent, type AccentKey, ACCENT_DEFS, type Theme } from '@/app/providers';
@@ -227,6 +228,7 @@ export default function SettingsPage() {
 
   const [wsName, setWsName] = useState('');
   const [waForm, setWaForm] = useState({ wa_phone_number_id: '', wa_phone_number: '', wa_access_token: '', wa_business_id: '' });
+  const [upiForm, setUpiForm] = useState({ upi_id: '', upi_name: '' });
   const [profileForm, setProfileForm] = useState({ about: '', description: '', email: '', website: '', vertical: '' });
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -257,6 +259,10 @@ export default function SettingsPage() {
       setSystemPrompt(activeWorkspace.ai_system_prompt ?? '');
       setBusinessType((activeWorkspace.business_type as BusinessType) ?? null);
       setBtChanged(false);
+      setUpiForm({
+        upi_id:   activeWorkspace.upi_id   ?? '',
+        upi_name: activeWorkspace.upi_name ?? '',
+      });
       const ws = activeWorkspace as unknown as Record<string, string | null>;
       setProfileForm({
         about:       ws.wa_about                ?? '',
@@ -317,6 +323,12 @@ export default function SettingsPage() {
     mutationFn: () => updateWorkspace(activeWorkspace!.id, waForm),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['workspaces'] }); toast.success('WhatsApp settings saved'); },
     onError: () => toast.error('Failed to save'),
+  });
+
+  const saveUpi = useMutation({
+    mutationFn: () => updateWorkspace(activeWorkspace!.id, upiForm),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['workspaces'] }); toast.success('UPI settings saved'); },
+    onError: (e: Error) => toast.error(e.message || 'Failed to save'),
   });
 
   const syncProfile = useMutation({
@@ -650,6 +662,42 @@ export default function SettingsPage() {
                       {saveWa.isPending ? 'Saving…' : 'Save WhatsApp'}
                     </Button>
                   </div>
+
+                  {/* ── UPI Payment Settings (restaurant only) ── */}
+                  {isRestaurantWorkspace(activeWorkspace?.business_type) && (
+                    <>
+                      <Divider />
+                      <div>
+                        <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--wb-text)' }}>UPI Payment Settings</h3>
+                        <p className="text-xs mb-4" style={{ color: 'var(--wb-text-3)' }}>
+                          Customers pay via UPI and send a screenshot to confirm their order.
+                        </p>
+                        <div className="space-y-3">
+                          <Field label="UPI ID" hint="e.g. restaurant@upi or 9999999999@paytm">
+                            <input className={inp} style={inpStyle} placeholder="yourname@upi"
+                              value={upiForm.upi_id}
+                              onChange={(e) => setUpiForm({ ...upiForm, upi_id: e.target.value })} />
+                          </Field>
+                          <Field label="Display Name" hint="Shown to customers on UPI payment screen">
+                            <input className={inp} style={inpStyle} placeholder="e.g. Raj's Kitchen"
+                              value={upiForm.upi_name}
+                              onChange={(e) => setUpiForm({ ...upiForm, upi_name: e.target.value })} />
+                          </Field>
+                          {upiForm.upi_id && upiForm.upi_name && (
+                            <div className="rounded-lg px-3 py-2.5 text-xs" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', color: '#22c55e' }}>
+                              ✅ Customers will pay to: <strong>{upiForm.upi_name}</strong> ({upiForm.upi_id})
+                            </div>
+                          )}
+                          <Button className="bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
+                            style={{ color: '#ffffff' }}
+                            onClick={() => saveUpi.mutate()}
+                            disabled={saveUpi.isPending}>
+                            {saveUpi.isPending ? 'Saving…' : 'Save UPI Settings'}
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   <Divider />
 

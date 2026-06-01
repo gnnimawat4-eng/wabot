@@ -360,4 +360,5 @@ const NODE_TYPE_DEFAULTS: Record<NodeType, { label: string; config: Record<strin
   on_reply: { label: 'On Reply', config: { message: '' } },
   branch:   { label: 'Branch',   config: { reply_contains: '', message: '' } },
   action:   { label: 'Action',   config: { stage: '' } },
+  payment:  { label: 'Payment',  config: { amount: '', amount_type: 'fixed' } },
 };

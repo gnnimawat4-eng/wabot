@@ -14,6 +14,8 @@ const toWorkspace = (row) => ({
   business_type: row.business_type ?? null,
   onboarding_completed: row.onboarding_completed ?? false,
   is_active: row.is_active ?? true,
+  upi_id:   row.upi_id   ?? null,
+  upi_name: row.upi_name ?? null,
   deactivated_at: row.deactivated_at ?? null,
   deactivated_reason: row.deactivated_reason ?? null,
   wa_profile_photo_url: row.wa_profile_photo_url ?? null,
@@ -37,6 +39,8 @@ const FIELD_MAP = {
   ai_system_prompt: 'ai_system_prompt',
   business_type: 'business_type',
   onboarding_completed: 'onboarding_completed',
+  upi_id:   'upi_id',
+  upi_name: 'upi_name',
 };
 
 const toDb = (body) =>
