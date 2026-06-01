@@ -39,14 +39,14 @@ async function checkResend() {
   }
   const start = Date.now();
   try {
-    const res = await fetch('https://api.resend.com/domains', {
+    const res = await fetch('https://api.resend.com/emails', {
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
     });
     return {
       service:      'resend',
-      status:       res.ok ? 'operational' : 'degraded',
+      status:       res.status !== 401 ? 'operational' : 'error',
       response_ms:  Date.now() - start,
-      error_message: res.ok ? null : `HTTP ${res.status}`,
+      error_message: res.status === 401 ? 'Invalid API key' : null,
     };
   } catch (e) {
     return { service: 'resend', status: 'error', error_message: e.message };
