@@ -191,5 +191,8 @@ export const getAdminOverview = () => api.get('/admin/overview').then((r) => r.d
 export const getAdminCustomers = () => api.get('/admin/customers').then((r) => r.data);
 export const getAdminRevenue = () => api.get('/admin/revenue').then((r) => r.data);
 export const getAdminErrors = () => api.get('/admin/errors').then((r) => r.data);
+export const getAdminWorkspaces = () => api.get('/admin/workspaces').then((r) => r.data);
+export const toggleWorkspace = (id: string, reason?: string) =>
+  api.patch(`/admin/workspaces/${id}/toggle`, { reason }).then((r) => r.data);
 
 export default api;

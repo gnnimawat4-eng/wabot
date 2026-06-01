@@ -342,6 +342,46 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     overflow: 'hidden',
   };
 
+  // Suspended workspace — full-page notice (admin users bypass)
+  const userEmail = (typeof window !== 'undefined' ? undefined : undefined); // resolved below
+  void userEmail; // suppress unused
+  const ws_ = activeWorkspace as unknown as Record<string, unknown> | null;
+  if (ws_ && ws_.is_active === false) {
+    const reason = ws_.deactivated_reason as string | null;
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--wb-bg)' }}>
+        <div className="text-center max-w-md px-6">
+          <div className="text-5xl mb-4">🚫</div>
+          <h1 className="text-xl font-bold mb-2" style={{ color: 'var(--wb-text)' }}>Workspace Suspended</h1>
+          <p className="text-sm mb-2" style={{ color: 'var(--wb-text-3)' }}>
+            <span className="font-medium" style={{ color: 'var(--wb-text)' }}>{activeWorkspace?.name}</span> has been suspended by the admin.
+          </p>
+          {reason && (
+            <p className="text-xs px-4 py-2 rounded-lg mb-4 inline-block" style={{ background: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}>
+              Reason: {reason}
+            </p>
+          )}
+          <p className="text-sm mb-6" style={{ color: 'var(--wb-text-3)' }}>
+            Please contact support to reactivate your workspace.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <a href="mailto:support@wabot.in"
+              className="text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+              style={{ background: 'var(--wb-accent)', color: '#fff' }}>
+              Contact Support
+            </a>
+            <button
+              onClick={() => { const active = workspaces.find((w) => (w as unknown as Record<string, unknown>).is_active !== false); if (active) setWorkspace(active); }}
+              className="text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+              style={{ border: '1px solid var(--wb-border)', color: 'var(--wb-text-2)' }}>
+              Switch Workspace
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <OnboardingModal />

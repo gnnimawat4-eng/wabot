@@ -69,6 +69,12 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
 
   if (!workspace) return;
 
+  // Silently drop messages for suspended workspaces — no reply sent
+  if (workspace.is_active === false) {
+    console.log(`Workspace ${workspace.id} is suspended — dropping inbound message`);
+    return;
+  }
+
   const from = msg.from;
   const contactName = msg.contacts?.[0]?.profile?.name || from;
 

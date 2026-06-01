@@ -13,6 +13,9 @@ const toWorkspace = (row) => ({
   ai_system_prompt: row.ai_system_prompt ?? null,
   business_type: row.business_type ?? null,
   onboarding_completed: row.onboarding_completed ?? false,
+  is_active: row.is_active ?? true,
+  deactivated_at: row.deactivated_at ?? null,
+  deactivated_reason: row.deactivated_reason ?? null,
   wa_profile_photo_url: row.wa_profile_photo_url ?? null,
   wa_about: row.wa_about ?? null,
   wa_business_description: row.wa_business_description ?? null,
@@ -45,6 +48,25 @@ const toDb = (body) =>
 
 module.exports = async function workspaceRoutes(fastify) {
   const auth = { onRequest: [fastify.authenticate] };
+
+  // Block mutating actions on suspended workspaces.
+  // Reads (GET) are still allowed so the frontend can see the suspension notice.
+  fastify.addHook('preHandler', async (req, reply) => {
+    if (req.method === 'GET') return; // reads always allowed
+    const wsId = req.params?.id;
+    if (!wsId) return;
+    const { data } = await supabase
+      .from('workspaces')
+      .select('is_active')
+      .eq('id', wsId)
+      .maybeSingle();
+    if (data && data.is_active === false) {
+      return reply.code(403).send({
+        error: 'WORKSPACE_SUSPENDED',
+        message: 'This workspace has been suspended. Please contact support.',
+      });
+    }
+  });
 
   // ── List workspaces (exclude soft-deleted) ──────────────────────────────
   fastify.get('/', auth, async (req) => {
