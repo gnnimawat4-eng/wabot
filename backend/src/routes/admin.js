@@ -268,7 +268,9 @@ module.exports = async function adminRoutes(fastify) {
   fastify.post('/system-health/refresh', adminAuth, async () => {
     const { checkAllServices } = require('../services/healthChecker');
     const results = await checkAllServices();
-    return results;
+    // Return same shape as GET /system-health so the UI can use either
+    const services = Object.fromEntries(results.map((r) => [r.service, { ...r, checked_at: new Date().toISOString() }]));
+    return { success: true, services, results };
   });
 
   // DELETE /admin/error-logs/old — purge logs older than 7 days

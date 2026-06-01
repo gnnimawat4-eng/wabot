@@ -4,7 +4,8 @@ const { logError }  = require('./errorLogger');
 async function checkSupabase() {
   const start = Date.now();
   try {
-    await supabase.from('workspaces').select('id').limit(1);
+    const { error } = await supabase.from('workspaces').select('id').limit(1);
+    if (error) throw error;
     return { service: 'supabase', status: 'operational', response_ms: Date.now() - start };
   } catch (e) {
     await logError(e, { source: 'supabase', route: 'health_check' });
@@ -42,9 +43,9 @@ async function checkResend() {
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
     });
     return {
-      service: 'resend',
-      status: res.ok ? 'operational' : 'degraded',
-      response_ms: Date.now() - start,
+      service:      'resend',
+      status:       res.ok ? 'operational' : 'degraded',
+      response_ms:  Date.now() - start,
       error_message: res.ok ? null : `HTTP ${res.status}`,
     };
   } catch (e) {
@@ -59,16 +60,27 @@ async function checkWhatsApp() {
       headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN || 'test'}` },
     });
     const data = await res.json();
-    // Token expired = code 190; anything else means Meta's API itself is reachable
+    // Token expired (190) or missing means META API itself is still reachable
     const apiReachable = !data.error || data.error.code !== -1;
     return {
-      service: 'whatsapp_api',
-      status: apiReachable ? 'operational' : 'error',
-      response_ms: Date.now() - start,
-      error_message: data.error && data.error.code === 190 ? 'Token expired' : (data.error?.message ?? null),
+      service:      'whatsapp_api',
+      status:       apiReachable ? 'operational' : 'error',
+      response_ms:  Date.now() - start,
+      error_message: data.error && data.error.code === 190
+        ? 'Token expired'
+        : (data.error?.message ?? null),
     };
   } catch (e) {
     return { service: 'whatsapp_api', status: 'error', error_message: e.message };
+  }
+}
+
+async function persistResult(result) {
+  const { error } = await supabase
+    .from('service_checks')
+    .insert({ ...result, checked_at: new Date().toISOString() });
+  if (error) {
+    console.error(`[HealthChecker] DB insert failed for ${result.service}:`, error.message, error.code);
   }
 }
 
@@ -81,18 +93,17 @@ async function checkAllServices() {
     Promise.resolve({ service: 'railway_backend', status: 'operational', response_ms: 0 }),
   ]);
 
-  // Persist to service_checks (fire and forget individual rows so one failure doesn't block)
-  await Promise.all(
-    results.map((r) =>
-      supabase.from('service_checks').insert({ ...r, checked_at: new Date().toISOString() }).catch(() => {})
-    )
-  );
+  const summary = results.map((r) => `${r.service}=${r.status}`).join(' | ');
+  console.log('[HealthChecker]', summary);
+
+  // Persist individually so one failure doesn't block others
+  await Promise.all(results.map(persistResult));
 
   return results;
 }
 
-// Run on startup + every 5 minutes
-checkAllServices().catch(console.error);
-setInterval(() => checkAllServices().catch(console.error), 5 * 60 * 1000);
+// Small startup delay so the DB connection is fully ready, then every 5 min
+setTimeout(() => checkAllServices().catch((e) => console.error('[HealthChecker] startup error:', e)), 5000);
+setInterval(() => checkAllServices().catch((e) => console.error('[HealthChecker] interval error:', e)), 5 * 60 * 1000);
 
 module.exports = { checkAllServices };
