@@ -193,16 +193,25 @@ export default function FlowsPage() {
             </div>
           )}
 
-          {/* Right edit panel */}
-          {selectedNode && (
-            <EditPanel
-              node={selectedNode}
-              isDark={isDark}
-              onUpdate={handleNodeUpdate}
-              onDelete={handleNodeDelete}
-              onAddChild={handleAddChild}
-            />
-          )}
+          {/* Right edit panel — slides in/out, canvas expands when closed */}
+          <div style={{
+            width: selectedNode ? 300 : 0,
+            overflow: 'hidden',
+            flexShrink: 0,
+            transition: 'width 0.2s ease',
+            borderLeft: selectedNode ? `1px solid ${isDark ? 'var(--wb-border)' : '#e5e5e5'}` : 'none',
+          }}>
+            {selectedNode && (
+              <EditPanel
+                node={selectedNode}
+                isDark={isDark}
+                onUpdate={handleNodeUpdate}
+                onDelete={handleNodeDelete}
+                onAddChild={handleAddChild}
+                onClose={() => setSelectedNodeId(null)}
+              />
+            )}
+          </div>
         </div>
       </div>
 

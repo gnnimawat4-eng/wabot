@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trash2, Plus, ChevronDown } from 'lucide-react';
+import { Trash2, Plus, ChevronDown, X } from 'lucide-react';
 import { NODE_TYPES, type CanvasNode, type NodeType, type NodeConfig } from './types';
 
 interface Props {
@@ -10,13 +10,14 @@ interface Props {
   onUpdate: (id: string, updates: Partial<CanvasNode>) => void;
   onDelete: (id: string) => void;
   onAddChild: (parentId: string, type: NodeType) => void;
+  onClose: () => void;
 }
 
 const ALL_TYPES: NodeType[] = ['trigger', 'message', 'on_reply', 'branch', 'action'];
 
 const inp = 'w-full rounded-lg px-3 py-2 text-sm border focus:outline-none focus:ring-1 focus:ring-green-500/40';
 
-export function EditPanel({ node, isDark, onUpdate, onDelete, onAddChild }: Props) {
+export function EditPanel({ node, isDark, onUpdate, onDelete, onAddChild, onClose }: Props) {
   const [label, setLabel] = useState(node.label);
   const [config, setConfig] = useState<NodeConfig>({ ...node.config });
   const [showTypePicker, setShowTypePicker] = useState(false);
@@ -52,7 +53,7 @@ export function EditPanel({ node, isDark, onUpdate, onDelete, onAddChild }: Prop
 
   return (
     <div className="flex flex-col h-full overflow-y-auto"
-      style={{ width: 300, minWidth: 300, borderLeft: `1px solid ${borderCol}`, background: bg }}>
+      style={{ width: 300, minWidth: 300, background: bg }}>
 
       {/* Header */}
       <div className="px-4 py-3 flex items-center gap-2 shrink-0"
@@ -61,6 +62,13 @@ export function EditPanel({ node, isDark, onUpdate, onDelete, onAddChild }: Prop
         <span className="text-sm font-semibold flex-1 truncate" style={{ color: 'var(--wb-text)' }}>
           {label || 'Edit Node'}
         </span>
+        <button
+          onClick={onClose}
+          title="Close panel"
+          className="rounded p-1 transition-colors hover:bg-white/10 shrink-0"
+          style={{ color: 'var(--wb-text-3)' }}>
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
