@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, Check, AlertTriangle, Trash2, RotateCcw, Palette, Lock, ShieldCheck, Upload, RefreshCw } from 'lucide-react';
+import { Bot, Check, AlertTriangle, Trash2, RotateCcw, Palette, Lock, ShieldCheck, Upload, RefreshCw, Copy, ChevronDown, ChevronUp, ExternalLink, Loader2 } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -240,6 +240,32 @@ export default function SettingsPage() {
   const [aiLang, setAiLang] = useState('auto');
   const [aiSaved, setAiSaved] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [tokenValidation, setTokenValidation] = useState<{ checking: boolean; valid: boolean | null; name?: string; error?: string }>({ checking: false, valid: null });
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [copiedItem, setCopiedItem] = useState<string | null>(null);
+
+  const validateToken = async (token: string) => {
+    if (!token?.trim()) { setTokenValidation({ checking: false, valid: null }); return; }
+    setTokenValidation({ checking: true, valid: null });
+    try {
+      const res = await fetch(`https://graph.facebook.com/v19.0/me?access_token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(8000) });
+      const data = await res.json();
+      if (data.error) {
+        setTokenValidation({ checking: false, valid: false, error: data.error.message });
+      } else {
+        setTokenValidation({ checking: false, valid: true, name: data.name });
+      }
+    } catch {
+      setTokenValidation({ checking: false, valid: false, error: 'Network error — check connection' });
+    }
+  };
+
+  const copyText = (text: string, key: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedItem(key);
+      setTimeout(() => setCopiedItem(null), 2000);
+    }).catch(() => {});
+  };
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -256,6 +282,11 @@ export default function SettingsPage() {
         wa_access_token: activeWorkspace.wa_access_token ?? '',
         wa_business_id: activeWorkspace.wa_business_id ?? '',
       });
+      if (activeWorkspace.wa_access_token) {
+        validateToken(activeWorkspace.wa_access_token);
+      } else {
+        setTokenValidation({ checking: false, valid: null });
+      }
       setSystemPrompt(activeWorkspace.ai_system_prompt ?? '');
       setBusinessType((activeWorkspace.business_type as BusinessType) ?? null);
       setBtChanged(false);
@@ -321,7 +352,11 @@ export default function SettingsPage() {
 
   const saveWa = useMutation({
     mutationFn: () => updateWorkspace(activeWorkspace!.id, waForm),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['workspaces'] }); toast.success('WhatsApp settings saved'); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['workspaces'] });
+      toast.success('WhatsApp settings saved');
+      if (waForm.wa_access_token) validateToken(waForm.wa_access_token);
+    },
     onError: () => toast.error('Failed to save'),
   });
 
@@ -635,6 +670,18 @@ export default function SettingsPage() {
                 <p className="text-sm" style={{ color: 'var(--wb-text-3)' }}>Create a workspace first in Workspace Settings.</p>
               ) : (
                 <>
+                  {/* ── Expired token banner ── */}
+                  {tokenValidation.valid === false && activeWorkspace.wa_access_token && (
+                    <div className="flex items-start gap-3 rounded-lg px-4 py-3"
+                      style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                      <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-red-400">WhatsApp token expired or invalid</p>
+                        <p className="text-xs text-red-400/70 mt-0.5">{tokenValidation.error || 'Please update your access token below'}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* ── API credentials ── */}
                   <div className="space-y-4">
                     <Field label="Phone Number ID" hint="From Meta Business Manager → WhatsApp Accounts">
@@ -652,6 +699,24 @@ export default function SettingsPage() {
                     <Field label="Access Token">
                       <input className={inp} style={inpStyle} type="password" placeholder="Permanent or temporary access token"
                         value={waForm.wa_access_token} onChange={(e) => setWaForm({ ...waForm, wa_access_token: e.target.value })} />
+                      {tokenValidation.checking && (
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <Loader2 className="h-3 w-3 animate-spin" style={{ color: 'var(--wb-text-3)' }} />
+                          <span className="text-xs" style={{ color: 'var(--wb-text-3)' }}>Verifying token…</span>
+                        </div>
+                      )}
+                      {!tokenValidation.checking && tokenValidation.valid === true && (
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <Check className="h-3 w-3 text-green-400" />
+                          <span className="text-xs text-green-400">Token verified{tokenValidation.name ? ` · ${tokenValidation.name}` : ''}</span>
+                        </div>
+                      )}
+                      {!tokenValidation.checking && tokenValidation.valid === false && (
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <AlertTriangle className="h-3 w-3 text-red-400" />
+                          <span className="text-xs text-red-400">{tokenValidation.error || 'Invalid token'}</span>
+                        </div>
+                      )}
                     </Field>
                     <Field label="Webhook URL (copy to Meta)" hint="Set this as your webhook URL in Meta's WhatsApp settings">
                       <input className={`${inp} font-mono text-xs opacity-60`} style={inpStyle} readOnly value={webhookUrl} />
@@ -661,6 +726,99 @@ export default function SettingsPage() {
                       onClick={() => saveWa.mutate()} disabled={saveWa.isPending}>
                       {saveWa.isPending ? 'Saving…' : 'Save WhatsApp'}
                     </Button>
+                  </div>
+
+                  <Divider />
+
+                  {/* ── Permanent System User Token Guide ── */}
+                  <div>
+                    <button
+                      onClick={() => setGuideOpen((v) => !v)}
+                      className="flex items-center justify-between w-full text-left group">
+                      <div>
+                        <p className="text-sm font-semibold" style={{ color: 'var(--wb-text)' }}>Get a Permanent System User Token</p>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--wb-text-3)' }}>
+                          User tokens expire every 60 days — system user tokens never expire.
+                        </p>
+                      </div>
+                      {guideOpen
+                        ? <ChevronUp className="h-4 w-4 shrink-0" style={{ color: 'var(--wb-text-3)' }} />
+                        : <ChevronDown className="h-4 w-4 shrink-0" style={{ color: 'var(--wb-text-3)' }} />}
+                    </button>
+
+                    {guideOpen && (
+                      <div className="mt-4 space-y-3">
+                        {/* Step 1 */}
+                        <div className="rounded-xl p-4 space-y-3" style={{ border: '1px solid var(--wb-border)', background: 'var(--wb-bg)' }}>
+                          <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--wb-accent)' }}>Step 1 — Meta Business Manager</p>
+                          <p className="text-sm" style={{ color: 'var(--wb-text)' }}>Open System Users in Meta Business Manager</p>
+                          <a
+                            href="https://business.facebook.com/settings/system-users"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                            style={{ background: 'var(--wb-bg-hover)', color: 'var(--wb-accent)', border: '1px solid var(--wb-border)' }}>
+                            <ExternalLink className="h-3 w-3" />
+                            Open System Users →
+                          </a>
+                        </div>
+
+                        {/* Step 2 */}
+                        <div className="rounded-xl p-4 space-y-3" style={{ border: '1px solid var(--wb-border)', background: 'var(--wb-bg)' }}>
+                          <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--wb-accent)' }}>Step 2 — Create System User &amp; Generate Token</p>
+                          <ol className="space-y-2 text-sm" style={{ color: 'var(--wb-text-2)' }}>
+                            <li className="flex gap-2">
+                              <span className="shrink-0 font-bold" style={{ color: 'var(--wb-text-3)' }}>1.</span>
+                              Click <strong style={{ color: 'var(--wb-text)' }}>Add</strong> → Name: <code className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--wb-bg-hover)', color: 'var(--wb-text)' }}>WaBot System User</code> → Role: <strong style={{ color: 'var(--wb-text)' }}>Admin</strong>
+                            </li>
+                            <li className="flex gap-2">
+                              <span className="shrink-0 font-bold" style={{ color: 'var(--wb-text-3)' }}>2.</span>
+                              Click the system user → <strong style={{ color: 'var(--wb-text)' }}>Generate New Token</strong> → Select your App
+                            </li>
+                            <li className="flex gap-2">
+                              <span className="shrink-0 font-bold" style={{ color: 'var(--wb-text-3)' }}>3.</span>
+                              Set token expiry to <strong style={{ color: 'var(--wb-text)' }}>Never</strong>
+                            </li>
+                            <li className="flex gap-2">
+                              <span className="shrink-0 font-bold" style={{ color: 'var(--wb-text-3)' }}>4.</span>
+                              Enable these permissions:
+                            </li>
+                          </ol>
+                          <div className="space-y-1">
+                            {['whatsapp_business_messaging', 'whatsapp_business_management', 'business_management'].map((perm) => (
+                              <div key={perm} className="flex items-center justify-between rounded-lg px-3 py-2"
+                                style={{ background: 'var(--wb-bg-hover)' }}>
+                                <div className="flex items-center gap-2">
+                                  <Check className="h-3 w-3 text-green-400" />
+                                  <code className="text-xs" style={{ color: 'var(--wb-text)' }}>{perm}</code>
+                                </div>
+                                <button
+                                  onClick={() => copyText(perm, perm)}
+                                  className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded transition-colors"
+                                  style={{ color: 'var(--wb-text-3)', background: 'var(--wb-bg)' }}>
+                                  {copiedItem === perm
+                                    ? <><Check className="h-2.5 w-2.5" />Copied</>
+                                    : <><Copy className="h-2.5 w-2.5" />Copy</>}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Step 3 */}
+                        <div className="rounded-xl p-4 space-y-2" style={{ border: '1px solid var(--wb-border)', background: 'var(--wb-bg)' }}>
+                          <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--wb-accent)' }}>Step 3 — Paste in WaBot</p>
+                          <p className="text-sm" style={{ color: 'var(--wb-text-2)' }}>
+                            Paste the generated token in the <strong style={{ color: 'var(--wb-text)' }}>Access Token</strong> field above and click <strong style={{ color: 'var(--wb-text)' }}>Save WhatsApp</strong>.
+                          </p>
+                          <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
+                            style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', color: '#22c55e' }}>
+                            <Check className="h-3 w-3 shrink-0" />
+                            Token is validated automatically after saving
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* ── UPI Payment Settings (restaurant only) ── */}
