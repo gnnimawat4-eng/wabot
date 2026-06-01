@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, Loader2, Check, ChevronDown } from 'lucide-react';
+import { Sparkles, Loader2, Check, ChevronDown, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AIGeneratedFlow, CanvasNode } from './types';
 import { makeId, layoutNodes } from './types';
@@ -39,6 +39,7 @@ export function AIGenerator({ workspaceId, onImport, onClose }: Props) {
   const [description, setDescription] = useState('');
   const [count, setCount] = useState('3');
   const [flows, setFlows] = useState<GeneratedFlow[]>([]);
+  const [wasTruncated, setWasTruncated] = useState(false);
 
   const generate = async () => {
     if (!description.trim()) { toast.error('Please describe what this flow should do'); return; }
@@ -53,12 +54,16 @@ export function AIGenerator({ workspaceId, onImport, onClose }: Props) {
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Generation failed'); }
       const data = await res.json();
-      const parsed: GeneratedFlow[] = (data.flows || []).map((f: AIGeneratedFlow) => ({
+      // Backend enforces single flow; take only first as a safety net
+      const rawFlows: AIGeneratedFlow[] = data.flows || [];
+      const single = rawFlows.slice(0, 1);
+      const parsed: GeneratedFlow[] = single.map((f: AIGeneratedFlow) => ({
         ...f,
         selected: true,
         stepCount: countSteps(f.steps || []),
       }));
       if (!parsed.length) throw new Error('No flows returned. Try again.');
+      setWasTruncated(rawFlows.length > 1);
       setFlows(parsed);
       setStep('preview');
     } catch (err: unknown) {
@@ -250,11 +255,19 @@ export function AIGenerator({ workspaceId, onImport, onClose }: Props) {
             <div className="p-5 space-y-3">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-sm font-medium" style={{ color: 'var(--wb-text)' }}>
-                  {flows.length} flow{flows.length > 1 ? 's' : ''} generated
+                  Flow generated
                 </p>
                 <button onClick={() => setStep('form')}
                   className="text-xs underline" style={{ color: 'var(--wb-text-3)' }}>← Regenerate</button>
               </div>
+
+              {wasTruncated && (
+                <div className="flex items-start gap-2 rounded-lg px-3 py-2.5 text-xs"
+                  style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b' }}>
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  AI returned multiple flows — only the first connected flow will be imported.
+                </div>
+              )}
 
               {flows.map((f, i) => (
                 <label key={i} className="flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-colors"
@@ -290,11 +303,11 @@ export function AIGenerator({ workspaceId, onImport, onClose }: Props) {
               Cancel
             </button>
             <button onClick={doImport}
-              disabled={!flows.some((f) => f.selected)}
+              disabled={!flows.length}
               className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm text-white font-semibold disabled:opacity-40"
               style={{ background: 'var(--wb-accent)' }}>
               <Check className="h-4 w-4" />
-              Import {flows.filter((f) => f.selected).length} Flow{flows.filter((f) => f.selected).length !== 1 ? 's' : ''}
+              Import Flow
             </button>
           </div>
         )}
