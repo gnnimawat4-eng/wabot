@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { ZoomIn, ZoomOut, Maximize, Save, Sparkles } from 'lucide-react';
 import { FlowNode } from './FlowNode';
 import {
-  NODE_W, NODE_H, H_GAP,
+  NODE_W, NODE_H, V_GAP,
   NODE_TYPES, NODE_TYPES_DARK,
   type CanvasNode, type NodeType,
   makeId, layoutNodes,
@@ -35,8 +35,8 @@ export function FlowBuilder({
   onSelectNode, onNodesChange, onSave, onOpenAI, onNameChange,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 80, y: 320 });
+  const [zoom, setZoom] = useState(0.85);
+  const [pan, setPan] = useState({ x: 300, y: 60 });
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
   const [editingName, setEditingName] = useState(false);
@@ -182,7 +182,7 @@ export function FlowBuilder({
       id: newId, type, label: NODE_TYPE_DEFAULTS[type].label,
       config: { ...NODE_TYPE_DEFAULTS[type].config },
       parentId, childIds: [],
-      x: parent.x + NODE_W + H_GAP, y: parent.y,
+      x: parent.x, y: parent.y + NODE_H + V_GAP,
     };
     const updated = {
       ...nodes,
@@ -202,10 +202,13 @@ export function FlowBuilder({
       for (const cid of n.childIds) {
         const child = nodes[cid];
         if (!child) continue;
-        const x1 = n.x + NODE_W, y1 = n.y + NODE_H / 2;
-        const x2 = child.x,      y2 = child.y + NODE_H / 2;
-        const mx = (x1 + x2) / 2;
-        result.push({ id: `${n.id}-${cid}`, d: `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}` });
+        // Bottom-center of parent → top-center of child
+        const x1 = n.x + NODE_W / 2;
+        const y1 = n.y + NODE_H;
+        const x2 = child.x + NODE_W / 2;
+        const y2 = child.y;
+        const cy = (y1 + y2) / 2;
+        result.push({ id: `${n.id}-${cid}`, d: `M${x1},${y1} C${x1},${cy} ${x2},${cy} ${x2},${y2}` });
       }
     }
     return result;
@@ -279,8 +282,8 @@ export function FlowBuilder({
             <pattern id="dots" x={dotX} y={dotY} width={DOT_SPACING * zoom} height={DOT_SPACING * zoom} patternUnits="userSpaceOnUse">
               <circle cx={1.5} cy={1.5} r={1.5} fill={dotColor} />
             </pattern>
-            <marker id="arrow" markerWidth={8} markerHeight={8} refX={7} refY={3} orient="auto">
-              <path d="M0,0 L8,3 L0,6 Z" fill={edgeColor} />
+            <marker id="arrow" markerWidth={8} markerHeight={8} refX={4} refY={4} orient="auto-start-reverse">
+              <path d="M0,0 L8,4 L0,8 Z" fill={edgeColor} />
             </marker>
           </defs>
 

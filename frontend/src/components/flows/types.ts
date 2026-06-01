@@ -29,10 +29,10 @@ export const NODE_TYPES_DARK: Record<NodeType, Partial<NodeTypeConfig>> = {
   payment:  { bg: 'rgba(29,158,117,0.15)' },
 };
 
-export const NODE_W = 164;
+export const NODE_W = 180;
 export const NODE_H = 56;
-export const H_GAP  = 80;   // horizontal gap between node columns
-export const V_GAP  = 20;   // vertical gap between sibling nodes
+export const H_GAP  = 44;   // horizontal gap between sibling subtrees
+export const V_GAP  = 80;   // vertical gap between levels
 
 // ── Canvas node ────────────────────────────────────────────────────────────────
 
@@ -101,47 +101,45 @@ export function makeId(): string {
   return 'n_' + Math.random().toString(36).slice(2, 9);
 }
 
-export function subtreeHeight(nodeId: string, nodes: Record<string, CanvasNode>): number {
+/** Width (px) occupied by a node's entire subtree, for horizontal centering */
+export function subtreeWidth(nodeId: string, nodes: Record<string, CanvasNode>): number {
   const node = nodes[nodeId];
-  if (!node || node.childIds.length === 0) return NODE_H;
+  if (!node || node.childIds.length === 0) return NODE_W;
   const total = node.childIds.reduce(
-    (s, cid) => s + subtreeHeight(cid, nodes), 0
-  );
-  return Math.max(NODE_H, total + (node.childIds.length - 1) * V_GAP);
+    (s, cid) => s + subtreeWidth(cid, nodes), 0
+  ) + (node.childIds.length - 1) * H_GAP;
+  return Math.max(NODE_W, total);
 }
 
+/** Top-down vertical layout: root at top-center, children spread below */
 export function layoutNodes(
   rootIds: string[],
   nodes: Record<string, CanvasNode>
 ): Record<string, CanvasNode> {
   const out = { ...nodes };
 
-  const totalH = rootIds.reduce((s, id) => s + subtreeHeight(id, out), 0)
-    + Math.max(0, rootIds.length - 1) * V_GAP;
-  let startY = -totalH / 2;
-
-  function pos(id: string, x: number, topY: number) {
-    const n = out[id];
+  function positionNode(nodeId: string, centerX: number, y: number) {
+    const n = out[nodeId];
     if (!n) return;
-    const h = subtreeHeight(id, out);
-    n.x = x;
-    n.y = topY + h / 2 - NODE_H / 2;
-    if (n.childIds.length === 0) return;
-    const childX = x + NODE_W + H_GAP;
-    const childrenH = n.childIds.reduce((s, cid) => s + subtreeHeight(cid, out), 0)
-      + (n.childIds.length - 1) * V_GAP;
-    let cy = n.y + NODE_H / 2 - childrenH / 2;
+    n.x = centerX - NODE_W / 2;
+    n.y = y;
+    if (!n.childIds.length) return;
+    const totalWidth = n.childIds.reduce((s, cid) => s + subtreeWidth(cid, out), 0)
+      + (n.childIds.length - 1) * H_GAP;
+    let cx = centerX - totalWidth / 2;
     for (const cid of n.childIds) {
-      const ch = subtreeHeight(cid, out);
-      pos(cid, childX, cy);
-      cy += ch + V_GAP;
+      const sw = subtreeWidth(cid, out);
+      positionNode(cid, cx + sw / 2, y + NODE_H + V_GAP);
+      cx += sw + H_GAP;
     }
   }
 
+  // Lay out root nodes side by side from left to right
+  let startX = 40;
   for (const rid of rootIds) {
-    const h = subtreeHeight(rid, out);
-    pos(rid, 40, startY);
-    startY += h + V_GAP;
+    const rw = subtreeWidth(rid, out);
+    positionNode(rid, startX + rw / 2, 40);
+    startX += rw + H_GAP * 3;
   }
 
   return out;
@@ -240,7 +238,7 @@ export function emptyFlow(triggerKeywords = 'hi,hello'): { nodes: Record<string,
   const node: CanvasNode = {
     id, type: 'trigger',
     label: 'Trigger', config: { trigger_keywords: triggerKeywords },
-    parentId: null, childIds: [], x: 40, y: -28,
+    parentId: null, childIds: [], x: 50, y: 40,
   };
   return { nodes: { [id]: node }, rootIds: [id] };
 }

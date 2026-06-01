@@ -59,9 +59,9 @@ export const FlowNode = memo(function FlowNode({ node, selected, isDark, onSelec
         {typeLabel}
       </text>
 
-      {/* "+" button on right */}
+      {/* "+" button — bottom center */}
       <g
-        transform={`translate(${NODE_W - 14}, ${NODE_H / 2 - 10})`}
+        transform={`translate(${NODE_W / 2 - 10}, ${NODE_H + 2})`}
         onClick={(e) => { e.stopPropagation(); setShowPicker(!showPicker); }}
         style={{ cursor: 'pointer' }}
       >
@@ -69,9 +69,9 @@ export const FlowNode = memo(function FlowNode({ node, selected, isDark, onSelec
         <text x={10} y={14.5} fontSize={16} textAnchor="middle" fill="white" fontWeight={300}>+</text>
       </g>
 
-      {/* Type picker popover */}
+      {/* Type picker — opens below */}
       {showPicker && (
-        <g transform={`translate(${NODE_W + 6}, ${NODE_H / 2 - PICKER_H / 2})`}
+        <g transform={`translate(${NODE_W / 2 - 65}, ${NODE_H + 26})`}
           onClick={(e) => e.stopPropagation()}>
           <rect
             x={0} y={0} width={130} height={PICKER_H} rx={8}
