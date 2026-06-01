@@ -8,7 +8,8 @@ async function logError(error, context = {}) {
       route:        context.route        || null,
       workspace_id: context.workspace_id || null,
       severity:     context.severity     || 'error',
-      metadata:     context.metadata     || {},
+      source:       context.source       || 'backend',
+      metadata:     { ...(context.metadata || {}), env: process.env.NODE_ENV },
     });
   } catch (e) {
     console.error('Failed to log error:', e?.message);

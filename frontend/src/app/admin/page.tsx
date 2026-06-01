@@ -7,11 +7,11 @@ import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts';
-import { Zap, RefreshCw, X, CheckCircle, AlertCircle, Search, ChevronRight } from 'lucide-react';
+import { Zap, RefreshCw, X, CheckCircle, AlertCircle, Search, ChevronRight, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import {
   getAdminAnalytics, getAdminWorkspaces, getAdminWorkspaceDetails,
-  getAdminErrorLogs, getHealthStatus, toggleWorkspace,
+  getAdminSystemHealth, refreshSystemHealth, clearOldErrorLogs, toggleWorkspace,
 } from '@/lib/api';
 import { timeAgo } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -430,93 +430,287 @@ function WorkspacesTab() {
 }
 
 // ── System Health tab ─────────────────────────────────────────────────────────
+
+interface ServiceCheck {
+  service: string; status: string; response_ms?: number;
+  error_message?: string | null; checked_at?: string;
+}
+interface ErrorLogEntry {
+  id: string; message: string; route?: string; workspace_id?: string;
+  severity: string; source: string; created_at: string; stack?: string;
+}
+interface SystemHealth {
+  services: Record<string, ServiceCheck>;
+  error_logs: ErrorLogEntry[];
+  error_counts_24h: Record<string, number>;
+  webhooks_today: number;
+  uptime_seconds: number;
+}
+
+const SVC_META: Record<string, { icon: string; label: string }> = {
+  railway_backend: { icon: '🚂', label: 'Railway Backend' },
+  supabase:        { icon: '🗄️', label: 'Supabase DB' },
+  groq:            { icon: '🤖', label: 'Groq AI' },
+  resend:          { icon: '📧', label: 'Resend Email' },
+  whatsapp_api:    { icon: '💬', label: 'WhatsApp API' },
+  vercel:          { icon: '🌐', label: 'Vercel Frontend' },
+};
+
+const SOURCE_COLORS: Record<string, { bg: string; text: string }> = {
+  backend:     { bg: 'rgba(24,95,165,0.2)',   text: '#60a5fa' },
+  supabase:    { bg: 'rgba(29,158,117,0.2)',  text: '#34d399' },
+  groq:        { bg: 'rgba(83,74,183,0.2)',   text: '#a78bfa' },
+  resend:      { bg: 'rgba(186,117,23,0.2)',  text: '#fbbf24' },
+  whatsapp_api:{ bg: 'rgba(20,184,166,0.2)',  text: '#2dd4bf' },
+  frontend:    { bg: 'rgba(163,45,45,0.2)',   text: '#f87171' },
+};
+
+const SEV_STYLE: Record<string, { bg: string; text: string; pulse?: boolean }> = {
+  critical: { bg: 'rgba(163,45,45,0.25)', text: '#f87171', pulse: true },
+  error:    { bg: 'rgba(163,45,45,0.15)', text: '#f87171' },
+  warn:     { bg: 'rgba(186,117,23,0.15)',text: '#fbbf24' },
+  info:     { bg: 'rgba(255,255,255,0.08)',text: '#9ca3af' },
+};
+
+function msColor(ms?: number) {
+  if (!ms) return '#9ca3af';
+  if (ms < 200) return C.green;
+  if (ms < 500) return C.amber;
+  return C.red;
+}
+
 function SystemHealthTab() {
-  const { data: health, isLoading: hLoading, dataUpdatedAt, refetch: refetchHealth } = useQuery({
-    queryKey: ['admin-health'],
-    queryFn: getHealthStatus,
-    refetchInterval: 60_000,
-    staleTime: 30_000,
-  });
-  const { data: errorLogs = [], isLoading: elLoading } = useQuery({
-    queryKey: ['admin-error-logs'],
-    queryFn: getAdminErrorLogs,
-    refetchInterval: 60_000,
+  const qc = useQueryClient();
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [sourceFilter, setSourceFilter] = useState('all');
+  const [severityFilter, setSeverityFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [vercelCheck, setVercelCheck] = useState<{ status: string; ms?: number } | null>(null);
+
+  const { data: health, isLoading, dataUpdatedAt } = useQuery<SystemHealth>({
+    queryKey: ['admin-system-health'],
+    queryFn: getAdminSystemHealth,
+    refetchInterval: autoRefresh ? 60_000 : false,
     staleTime: 30_000,
   });
 
-  const isApiOk = !!health;
-  const isDbOk  = health?.database?.status === 'ok';
+  const refreshMut = useMutation({
+    mutationFn: refreshSystemHealth,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-system-health'] }); toast.success('Health check complete'); },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
-  const StatusCard = ({ title, ok, detail, sub }: { title: string; ok: boolean | null; detail: string; sub?: string }) => (
-    <div className="rounded-xl bg-white/5 border border-white/8 p-4">
-      <div className="flex items-center gap-2 mb-2">
-        {ok === null ? <div className="h-4 w-4 rounded-full bg-white/20 animate-pulse" />
-          : ok ? <CheckCircle className="h-4 w-4 text-green-400" />
-          : <AlertCircle className="h-4 w-4 text-red-400" />}
-        <p className="text-sm font-semibold text-white">{title}</p>
+  const clearMut = useMutation({
+    mutationFn: clearOldErrorLogs,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-system-health'] }); toast.success('Old logs cleared'); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Vercel frontend check (client-side HEAD request)
+  useEffect(() => {
+    const pingVercel = async () => {
+      const start = Date.now();
+      try {
+        await fetch('https://wabot-sepia.vercel.app', { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+        setVercelCheck({ status: 'operational', ms: Date.now() - start });
+      } catch {
+        setVercelCheck({ status: 'error' });
+      }
+    };
+    pingVercel();
+    if (!autoRefresh) return;
+    const t = setInterval(pingVercel, 60_000);
+    return () => clearInterval(t);
+  }, [autoRefresh]);
+
+  // ── Service status card ────────────────────────────────────────────────────
+  const ServiceCard = ({ svcKey }: { svcKey: string }) => {
+    const svc = svcKey === 'vercel'
+      ? { service: 'vercel', status: vercelCheck?.status ?? 'unknown', response_ms: vercelCheck?.ms, checked_at: new Date().toISOString() }
+      : health?.services[svcKey];
+    const meta = SVC_META[svcKey];
+    const status = svc?.status ?? 'unknown';
+    const isOp = status === 'operational';
+    const isUnk = status === 'unknown';
+
+    const statusColor = isOp ? C.green : isUnk ? '#555' : C.red;
+    const statusLabel = isOp ? 'Operational' : isUnk ? 'Unknown' : status === 'degraded' ? 'Degraded' : 'Error';
+
+    return (
+      <div className="rounded-xl bg-white/5 border border-white/8 p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{meta?.icon}</span>
+            <p className="text-sm font-semibold text-white">{meta?.label}</p>
+          </div>
+          {isLoading && svcKey !== 'vercel' ? (
+            <div className="h-2.5 w-2.5 rounded-full bg-white/20 animate-pulse" />
+          ) : isOp ? (
+            <CheckCircle className="h-4 w-4 text-green-400" />
+          ) : isUnk ? (
+            <div className="h-4 w-4 rounded-full border-2 border-white/20" />
+          ) : (
+            <AlertCircle className="h-4 w-4 text-red-400" />
+          )}
+        </div>
+
+        <p className="text-xs font-semibold" style={{ color: statusColor }}>{statusLabel}</p>
+
+        {svc?.response_ms != null && (
+          <p className="text-xs" style={{ color: msColor(svc.response_ms) }}>
+            {svc.response_ms} ms
+          </p>
+        )}
+        {svc?.error_message && (
+          <p className="text-[10px] text-red-400/80 truncate" title={svc.error_message}>{svc.error_message}</p>
+        )}
+
+        {/* Contextual sub-stat */}
+        {svcKey === 'whatsapp_api' && health?.webhooks_today != null && (
+          <p className="text-[10px] text-white/30">{health.webhooks_today} webhooks today</p>
+        )}
+        {svcKey === 'railway_backend' && health?.uptime_seconds != null && (
+          <p className="text-[10px] text-white/30">
+            Uptime {Math.floor(health.uptime_seconds / 3600)}h {Math.floor((health.uptime_seconds % 3600) / 60)}m
+          </p>
+        )}
+        {svc?.checked_at && (
+          <p className="text-[10px] text-white/20">{timeAgo(svc.checked_at)}</p>
+        )}
       </div>
-      <p className="text-xs font-medium" style={{ color: ok ? C.green : ok === null ? '#666' : C.red }}>
-        {hLoading ? '…' : detail}
-      </p>
-      {sub && <p className="text-xs text-white/30 mt-0.5">{sub}</p>}
-    </div>
-  );
+    );
+  };
+
+  // ── Error log filtering ────────────────────────────────────────────────────
+  const allLogs = health?.error_logs ?? [];
+  const filtered = useMemo(() => allLogs.filter((e) => {
+    if (sourceFilter   !== 'all' && e.source   !== sourceFilter)   return false;
+    if (severityFilter !== 'all' && e.severity !== severityFilter) return false;
+    if (searchQuery && !e.message?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  }), [allLogs, sourceFilter, severityFilter, searchQuery]);
+
+  const errorsLast24h = Object.values(health?.error_counts_24h ?? {}).reduce((s, n) => s + n, 0);
+  const criticalCount = allLogs.filter((e) => e.severity === 'critical').length;
+  const worstSource   = Object.entries(health?.error_counts_24h ?? {}).sort((a, b) => b[1] - a[1])[0]?.[0];
 
   return (
     <div className="space-y-6">
-      {/* Status cards */}
-      <div className="grid grid-cols-4 gap-3">
-        <StatusCard title="API Server" ok={isApiOk}
-          detail={isApiOk ? 'Operational' : 'Unreachable'}
-          sub={health ? `Uptime: ${Math.floor((health.uptime ?? 0) / 3600)}h ${Math.floor(((health.uptime ?? 0) % 3600) / 60)}m` : undefined} />
-        <StatusCard title="Database" ok={hLoading ? null : isDbOk}
-          detail={isDbOk ? `Connected` : 'Error'}
-          sub={health?.database?.response_ms != null ? `${health.database.response_ms} ms response` : undefined} />
-        <StatusCard title="WhatsApp Webhook" ok={isApiOk}
-          detail={isApiOk ? 'Active' : '—'}
-          sub={health != null ? `${health.webhooks_today ?? 0} messages today` : undefined} />
-        <StatusCard title="Email (Resend)" ok={hLoading ? null : (health?.email_configured ?? false)}
-          detail={health?.email_configured ? 'Configured' : 'API key missing'}
-          sub={dataUpdatedAt > 0 ? `Checked ${timeAgo(new Date(dataUpdatedAt).toISOString())}` : undefined} />
+      {/* Action bar */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => refreshMut.mutate()}
+            disabled={refreshMut.isPending}
+            className="flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40"
+            style={{ background: 'rgba(29,158,117,0.15)', color: C.green, border: `1px solid rgba(29,158,117,0.3)` }}>
+            <RefreshCw className={`h-3 w-3 ${refreshMut.isPending ? 'animate-spin' : ''}`} />
+            {refreshMut.isPending ? 'Checking…' : 'Refresh All'}
+          </button>
+          <button
+            onClick={() => setAutoRefresh((v) => !v)}
+            className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors">
+            {autoRefresh ? <ToggleRight className="h-4 w-4 text-green-400" /> : <ToggleLeft className="h-4 w-4" />}
+            Auto-refresh
+          </button>
+        </div>
+        {dataUpdatedAt > 0 && (
+          <p className="text-xs text-white/25">Last updated {timeAgo(new Date(dataUpdatedAt).toISOString())}</p>
+        )}
       </div>
 
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">Error Log (last 50)</p>
-        <button onClick={() => refetchHealth()} className="text-xs text-white/30 hover:text-white/60 flex items-center gap-1 transition-colors">
-          <RefreshCw className="h-3 w-3" /> Refresh
+      {/* 6 service cards */}
+      <div className="grid grid-cols-3 gap-3">
+        {Object.keys(SVC_META).map((k) => <ServiceCard key={k} svcKey={k} />)}
+      </div>
+
+      {/* Error stats row */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-xl bg-white/5 border border-white/8 px-4 py-3">
+          <p className="text-xs text-white/40 mb-0.5">Errors last 24 h</p>
+          <p className="text-xl font-bold" style={{ color: errorsLast24h > 0 ? C.red : C.green }}>{errorsLast24h}</p>
+        </div>
+        <div className="rounded-xl bg-white/5 border border-white/8 px-4 py-3">
+          <p className="text-xs text-white/40 mb-0.5">Critical errors</p>
+          <p className="text-xl font-bold" style={{ color: criticalCount > 0 ? C.red : C.green }}>
+            {criticalCount}
+          </p>
+        </div>
+        <div className="rounded-xl bg-white/5 border border-white/8 px-4 py-3">
+          <p className="text-xs text-white/40 mb-0.5">Most errors from</p>
+          <p className="text-xl font-bold text-white">{worstSource ?? '—'}</p>
+        </div>
+      </div>
+
+      {/* Filter + table header */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-36">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-white/25" />
+          <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search messages…"
+            className="w-full pl-7 pr-3 py-1.5 rounded-lg text-xs bg-white/5 border border-white/10 text-white placeholder:text-white/25 focus:outline-none focus:border-white/25" />
+        </div>
+
+        <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}
+          className="px-3 py-1.5 rounded-lg text-xs bg-white/5 border border-white/10 text-white/60 focus:outline-none">
+          <option value="all">All sources</option>
+          {Object.keys(SOURCE_COLORS).map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+
+        <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value)}
+          className="px-3 py-1.5 rounded-lg text-xs bg-white/5 border border-white/10 text-white/60 focus:outline-none">
+          <option value="all">All severities</option>
+          {['critical', 'error', 'warn', 'info'].map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+
+        <button onClick={() => clearMut.mutate()} disabled={clearMut.isPending}
+          className="flex items-center gap-1.5 text-xs text-white/30 hover:text-red-400 transition-colors disabled:opacity-40">
+          <Trash2 className="h-3 w-3" /> Clear old (7d+)
         </button>
       </div>
 
+      {/* Error log table */}
       <div className="rounded-xl border border-white/8 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-white/8 bg-white/3">
-              {['Time', 'Severity', 'Route', 'Message'].map((h) => (
-                <th key={h} className="text-left text-xs text-white/40 font-medium px-4 py-3">{h}</th>
+              {['Time', 'Source', 'Severity', 'Route', 'Message'].map((h) => (
+                <th key={h} className="text-left text-xs text-white/40 font-medium px-4 py-3 whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {elLoading && [1,2,3].map(i => (
+            {isLoading && [1,2,3].map((i) => (
               <tr key={i} className="border-b border-white/5">
-                {[1,2,3,4].map(j => <td key={j} className="px-4 py-3"><Skeleton h="h-4" w="w-24" /></td>)}
+                {[1,2,3,4,5].map((j) => <td key={j} className="px-4 py-3"><Skeleton h="h-4" w="w-20" /></td>)}
               </tr>
             ))}
-            {!elLoading && (errorLogs as Array<{ id: string; created_at: string; severity: string; route: string; message: string }>).map((e, i) => (
-              <tr key={e.id} className={`border-b border-white/5 last:border-0 ${i % 2 ? 'bg-white/[0.015]' : ''}`}>
-                <td className="px-4 py-2.5 text-xs text-white/40 whitespace-nowrap">{timeAgo(e.created_at)}</td>
-                <td className="px-4 py-2.5">
-                  <span className="text-xs px-1.5 py-0.5 rounded font-medium"
-                    style={e.severity === 'error' ? { background: 'rgba(163,45,45,0.15)', color: '#f87171' } : { background: 'rgba(186,117,23,0.15)', color: '#fbbf24' }}>
-                    {e.severity}
-                  </span>
-                </td>
-                <td className="px-4 py-2.5 text-xs text-white/40 font-mono">{e.route ?? '—'}</td>
-                <td className="px-4 py-2.5 text-xs text-white/60 max-w-xs truncate">{e.message}</td>
-              </tr>
-            ))}
-            {!elLoading && (errorLogs as unknown[]).length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-white/30 text-sm">No errors logged 🎉</td></tr>
+            {!isLoading && filtered.map((e, i) => {
+              const src = SOURCE_COLORS[e.source] ?? SOURCE_COLORS.backend;
+              const sev = SEV_STYLE[e.severity] ?? SEV_STYLE.info;
+              return (
+                <tr key={e.id} className={`border-b border-white/5 last:border-0 ${i % 2 ? 'bg-white/[0.015]' : ''}`}>
+                  <td className="px-4 py-2.5 text-[10px] text-white/30 whitespace-nowrap">{timeAgo(e.created_at)}</td>
+                  <td className="px-4 py-2.5">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: src.bg, color: src.text }}>
+                      {e.source}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${sev.pulse ? 'animate-pulse' : ''}`}
+                      style={{ background: sev.bg, color: sev.text }}>
+                      {e.severity}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-[10px] text-white/35 font-mono max-w-[100px] truncate">{e.route ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-xs text-white/60 max-w-xs truncate" title={e.message}>{e.message}</td>
+                </tr>
+              );
+            })}
+            {!isLoading && filtered.length === 0 && (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-white/30 text-sm">
+                {allLogs.length === 0 ? 'No errors logged 🎉' : 'No logs match filters'}
+              </td></tr>
             )}
           </tbody>
         </table>

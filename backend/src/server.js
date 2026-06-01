@@ -96,6 +96,22 @@ async function purgeExpiredTrash() {
 setTimeout(purgeExpiredTrash, 5000);
 setInterval(purgeExpiredTrash, 24 * 60 * 60 * 1000);
 
+// ── Global error handlers ──────────────────────────────────────────────────
+const { logError } = require('./services/errorLogger');
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  logError(error, { source: 'backend', severity: 'critical', route: 'uncaught_exception' }).catch(() => {});
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+  logError(new Error(String(reason)), { source: 'backend', severity: 'critical', route: 'unhandled_rejection' }).catch(() => {});
+});
+
+// ── Background health checks (every 5 min) ────────────────────────────────
+require('./services/healthChecker');
+
 const start = async () => {
   try {
     await app.listen({ port: parseInt(process.env.PORT || '3001'), host: '0.0.0.0' });

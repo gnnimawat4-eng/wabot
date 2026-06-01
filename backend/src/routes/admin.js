@@ -230,6 +230,55 @@ module.exports = async function adminRoutes(fastify) {
     return data ?? [];
   });
 
+  // ── System health — all services ───────────────────────────────────────────
+  fastify.get('/system-health', adminAuth, async () => {
+    const services = ['railway_backend', 'supabase', 'groq', 'resend', 'whatsapp_api'];
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const [latestChecksArr, errorLogsRes, errorCountsRes, webhooksTodayRes] = await Promise.all([
+      // Latest check per service
+      Promise.all(services.map((svc) =>
+        supabase.from('service_checks').select('*').eq('service', svc)
+          .order('checked_at', { ascending: false }).limit(1)
+          .then(({ data }) => data?.[0] ?? { service: svc, status: 'unknown' })
+      )),
+      supabase.from('error_logs').select('*').order('created_at', { ascending: false }).limit(100),
+      supabase.from('error_logs').select('source, severity').gte('created_at', yesterday),
+      supabase.from('messages').select('id', { count: 'exact', head: true }).gte('created_at', today).eq('direction', 'inbound'),
+    ]);
+
+    const latestChecks = Object.fromEntries(latestChecksArr.map((c) => [c.service, c]));
+
+    const countBySource = {};
+    for (const e of (errorCountsRes.data || [])) {
+      countBySource[e.source] = (countBySource[e.source] || 0) + 1;
+    }
+
+    return {
+      services:          latestChecks,
+      error_logs:        errorLogsRes.data  ?? [],
+      error_counts_24h:  countBySource,
+      webhooks_today:    webhooksTodayRes.count ?? 0,
+      uptime_seconds:    Math.floor(process.uptime()),
+    };
+  });
+
+  // POST /admin/system-health/refresh — trigger immediate check
+  fastify.post('/system-health/refresh', adminAuth, async () => {
+    const { checkAllServices } = require('../services/healthChecker');
+    const results = await checkAllServices();
+    return results;
+  });
+
+  // DELETE /admin/error-logs/old — purge logs older than 7 days
+  fastify.delete('/error-logs/old', adminAuth, async () => {
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { error } = await supabase.from('error_logs').delete().lt('created_at', cutoff);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  });
+
   // Toggle workspace active/suspended status
   fastify.patch('/workspaces/:id/toggle', adminAuth, async (req, reply) => {
     const { id } = req.params;

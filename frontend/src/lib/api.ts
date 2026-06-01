@@ -210,5 +210,8 @@ export const getAdminAnalytics = () => api.get('/admin/analytics/overview').then
 export const getAdminWorkspaceDetails = (id: string) => api.get(`/admin/workspaces/${id}/details`).then((r) => r.data);
 export const getAdminErrorLogs = () => api.get('/admin/error-logs').then((r) => r.data);
 export const getHealthStatus = () => api.get('/health').then((r) => r.data);
+export const getAdminSystemHealth = () => api.get('/admin/system-health').then((r) => r.data);
+export const refreshSystemHealth = () => api.post('/admin/system-health/refresh').then((r) => r.data);
+export const clearOldErrorLogs = () => api.delete('/admin/error-logs/old').then((r) => r.data);
 
 export default api;

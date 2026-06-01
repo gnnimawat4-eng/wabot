@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { supabase } = require('../services/supabase');
+const { logError } = require('../services/errorLogger');
 const { evaluateTriggers, resumeFlowOnReply } = require('../services/flowEngine');
 const { handleConversation } = require('../services/conversationEngine');
 const { handleRoomOrderWebhook } = require('./hotelRooms');
@@ -178,7 +179,9 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
 
   // State machine: greeting / menu navigation handled here first
   const smConsumed = await handleConversation(contact, workspace, msgBody).catch((err) => {
-    console.error('Conversation engine error:', err?.message); return false;
+    console.error('Conversation engine error:', err?.message);
+    logError(err, { source: 'backend', route: 'webhook/conversation_engine', workspace_id: workspace.id }).catch(() => {});
+    return false;
   });
   if (smConsumed) return;
 
@@ -230,6 +233,7 @@ async function handleInbound(phoneNumberId, displayPhone, msg) {
     } catch (err) {
       // AI failure is non-fatal — log and continue
       console.error('AI reply error:', err?.message);
+      logError(err, { source: 'groq', route: 'webhook/ai_reply', workspace_id: workspace?.id }).catch(() => {});
     }
   }
 }

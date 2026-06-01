@@ -2,6 +2,7 @@
  * AI Routes — /ai/*
  * POST /ai/generate-flows  — generate WhatsApp flows via Groq
  */
+const { logError } = require('../services/errorLogger');
 
 module.exports = async function aiRoutes(fastify) {
   const auth = { onRequest: [fastify.authenticate] };
@@ -97,6 +98,7 @@ Return ONLY the JSON array, nothing else.`;
       return { flows };
     } catch (err) {
       console.error('AI generate-flows error:', err?.message);
+      logError(err, { source: 'groq', route: 'ai/generate-flows' }).catch(() => {});
       return reply.code(500).send({ error: err?.message || 'AI generation failed' });
     }
   });
