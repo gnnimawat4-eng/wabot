@@ -87,44 +87,33 @@ export function FlowBuilder({
     setZoom(newZoom);
   }, [zoom]);
 
-  // ── Restore position or auto-fit on mount ─────────────────────────────────────
-  // FlowBuilder is remounted each time a new flow is loaded (parent shows a
-  // spinner while loading, then mounts FlowBuilder fresh). So a mount-only
-  // effect is the right place to restore/fit.
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(lsKey(flowId));
-      if (saved) {
-        const pos = JSON.parse(saved) as { panX: number; panY: number; z: number };
-        setPan({ x: pos.panX, y: pos.panY });
-        setZoom(pos.z);
-        return;
-      }
-    } catch { /* ignore */ }
-    // No saved position — fit after two paint frames to ensure SVG has dimensions
-    requestAnimationFrame(() => requestAnimationFrame(() => fitView()));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally only on mount; nodes/fitView are already populated
-
-  // ── Save position to localStorage (debounced 600 ms) ─────────────────────────
-
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (!flowId) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      try {
-        localStorage.setItem(lsKey(flowId), JSON.stringify({ panX: pan.x, panY: pan.y, z: zoom }));
-      } catch { /* ignore */ }
-    }, 600);
-    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-  }, [flowId, pan.x, pan.y, zoom]);
-
-  // ── Keyboard shortcuts: F = fit view, R = reset to 100% centered ─────────────
+  // ── Auto-fit on mount and when nodes first populate ───────────────────────────
+  // Always fit on mount so stale localStorage positions (e.g. from the old
+  // horizontal layout) never place nodes off-screen. Use a 120 ms timeout so
+  // the SVG has been painted and getBoundingClientRect() returns real dimensions.
 
   const fitViewRef = useRef(fitView);
   fitViewRef.current = fitView;
+
+  useEffect(() => {
+    const t = setTimeout(() => fitViewRef.current(), 120);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // mount only
+
+  // Also re-fit whenever the set of nodes changes from empty → populated
+  // (covers AI-import where nodes arrive after mount).
+  const prevNodeCountRef = useRef(Object.keys(nodes).length);
+  useEffect(() => {
+    const count = Object.keys(nodes).length;
+    if (prevNodeCountRef.current === 0 && count > 0) {
+      setTimeout(() => fitViewRef.current(), 60);
+    }
+    prevNodeCountRef.current = count;
+  }, [nodes]);
+
+  // ── Keyboard shortcuts: F = fit view, R = reset to 100% centered ─────────────
+
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
 
