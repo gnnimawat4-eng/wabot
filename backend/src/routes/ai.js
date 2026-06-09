@@ -273,14 +273,24 @@ module.exports = async function aiRoutes(fastify) {
     const bizType = detectType(description + ' ' + (rawBizType || '') + ' ' + biz);
     const template = TEMPLATES[bizType];
 
-    const { GoogleGenerativeAI } = require('@google/generative-ai');
     console.log('Gemini key exists:', !!process.env.GEMINI_API_KEY);
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-8b' });
 
     try {
-      const result = await model.generateContent(buildValuesPrompt(biz, description.trim(), bizType));
-      const text = result.response.text() || '{}';
+      const prompt = buildValuesPrompt(biz, description.trim(), bizType);
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        console.error('[AI] Gemini API error:', JSON.stringify(data).slice(0, 300));
+        return reply.code(500).send({ error: data?.error?.message || 'Gemini API error' });
+      }
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
 
       // Extract JSON object from response
       const match = text.match(/\{[\s\S]*\}/);
