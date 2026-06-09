@@ -265,25 +265,21 @@ module.exports = async function aiRoutes(fastify) {
     if (!description?.trim()) {
       return reply.code(400).send({ error: 'description is required' });
     }
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return reply.code(503).send({ error: 'AI not configured — set ANTHROPIC_API_KEY on the server' });
+    if (!process.env.GEMINI_API_KEY) {
+      return reply.code(503).send({ error: 'AI not configured — set GEMINI_API_KEY on the server' });
     }
 
     const biz     = businessName?.trim() || 'this business';
     const bizType = detectType(description + ' ' + (rawBizType || '') + ' ' + biz);
     const template = TEMPLATES[bizType];
 
-    const Anthropic = require('@anthropic-ai/sdk');
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     try {
-      const response = await anthropic.messages.create({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 2048,
-        messages:   [{ role: 'user', content: buildValuesPrompt(biz, description.trim(), bizType) }],
-      });
-
-      const text = response.content[0]?.text || '{}';
+      const result = await model.generateContent(buildValuesPrompt(biz, description.trim(), bizType));
+      const text = result.response.text() || '{}';
 
       // Extract JSON object from response
       const match = text.match(/\{[\s\S]*\}/);
@@ -306,7 +302,7 @@ module.exports = async function aiRoutes(fastify) {
 
     } catch (err) {
       console.error('AI generate-flows error:', err?.message);
-      logError(err, { source: 'claude', route: 'ai/generate-flows' }).catch(() => {});
+      logError(err, { source: 'gemini', route: 'ai/generate-flows' }).catch(() => {});
       return reply.code(500).send({ error: err?.message || 'AI generation failed' });
     }
   });
