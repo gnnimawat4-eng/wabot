@@ -274,6 +274,7 @@ module.exports = async function aiRoutes(fastify) {
     const template = TEMPLATES[bizType];
 
     const { GoogleGenerativeAI } = require('@google/generative-ai');
+    console.log('Gemini key exists:', !!process.env.GEMINI_API_KEY);
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
 
