@@ -6,7 +6,10 @@
  * values (names, messages, prices). This prevents the model from mangling
  * the JSON shape and guarantees a valid connected flow every time.
  */
+const Groq = require('groq-sdk');
 const { logError } = require('../services/errorLogger');
+
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // ── Business-type detection ────────────────────────────────────────────────────
 
@@ -265,32 +268,23 @@ module.exports = async function aiRoutes(fastify) {
     if (!description?.trim()) {
       return reply.code(400).send({ error: 'description is required' });
     }
-    if (!process.env.GEMINI_API_KEY) {
-      return reply.code(503).send({ error: 'AI not configured — set GEMINI_API_KEY on the server' });
+    if (!process.env.GROQ_API_KEY) {
+      return reply.code(503).send({ error: 'AI not configured — set GROQ_API_KEY on the server' });
     }
 
     const biz     = businessName?.trim() || 'this business';
     const bizType = detectType(description + ' ' + (rawBizType || '') + ' ' + biz);
     const template = TEMPLATES[bizType];
 
-    console.log('Gemini key exists:', !!process.env.GEMINI_API_KEY);
-
     try {
       const prompt = buildValuesPrompt(biz, description.trim(), bizType);
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-        {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-        }
-      );
-      const data = await response.json();
-      if (!response.ok) {
-        console.error('[AI] Gemini API error:', JSON.stringify(data).slice(0, 300));
-        return reply.code(500).send({ error: data?.error?.message || 'Gemini API error' });
-      }
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      const completion = await groq.chat.completions.create({
+        model:      'llama-3.3-70b-versatile',
+        messages:   [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+        max_tokens:  1000,
+      });
+      const text = completion.choices[0].message.content;
 
       // Extract JSON object from response
       const match = text.match(/\{[\s\S]*\}/);
@@ -313,7 +307,7 @@ module.exports = async function aiRoutes(fastify) {
 
     } catch (err) {
       console.error('AI generate-flows error:', err?.message);
-      logError(err, { source: 'gemini', route: 'ai/generate-flows' }).catch(() => {});
+      logError(err, { source: 'groq', route: 'ai/generate-flows' }).catch(() => {});
       return reply.code(500).send({ error: err?.message || 'AI generation failed' });
     }
   });
