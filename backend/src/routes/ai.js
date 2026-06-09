@@ -265,26 +265,25 @@ module.exports = async function aiRoutes(fastify) {
     if (!description?.trim()) {
       return reply.code(400).send({ error: 'description is required' });
     }
-    if (!process.env.GROQ_API_KEY) {
-      return reply.code(503).send({ error: 'AI not configured — set GROQ_API_KEY on the server' });
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return reply.code(503).send({ error: 'AI not configured — set ANTHROPIC_API_KEY on the server' });
     }
 
     const biz     = businessName?.trim() || 'this business';
     const bizType = detectType(description + ' ' + (rawBizType || '') + ' ' + biz);
     const template = TEMPLATES[bizType];
 
-    const Groq = require('groq-sdk');
-    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const Anthropic = require('@anthropic-ai/sdk');
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     try {
-      const completion = await groq.chat.completions.create({
-        messages: [{ role: 'user', content: buildValuesPrompt(biz, description.trim(), bizType) }],
-        model:       'llama-3.3-70b-versatile',
-        max_tokens:  1024,
-        temperature: 0.5,
+      const response = await anthropic.messages.create({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 2048,
+        messages:   [{ role: 'user', content: buildValuesPrompt(biz, description.trim(), bizType) }],
       });
 
-      const text = completion.choices[0]?.message?.content || '{}';
+      const text = response.content[0]?.text || '{}';
 
       // Extract JSON object from response
       const match = text.match(/\{[\s\S]*\}/);
@@ -307,7 +306,7 @@ module.exports = async function aiRoutes(fastify) {
 
     } catch (err) {
       console.error('AI generate-flows error:', err?.message);
-      logError(err, { source: 'groq', route: 'ai/generate-flows' }).catch(() => {});
+      logError(err, { source: 'claude', route: 'ai/generate-flows' }).catch(() => {});
       return reply.code(500).send({ error: err?.message || 'AI generation failed' });
     }
   });
